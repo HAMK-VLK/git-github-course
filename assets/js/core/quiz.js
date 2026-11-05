@@ -56,6 +56,7 @@
         var longest = acc.reduce(function (n, a) { return Math.max(n, String(a).length); }, 6);
         var inp = el('input', { type: 'text', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', class: 'q-input', size: Math.min(36, longest + 2), 'aria-label': TDC.t('quiz.blank') + ' ' + m[1] });
         inputs[m[1]] = inp; holder.appendChild(inp);
+        holder.appendChild(inp._mark = el('span', { class: 'q-blank-mark', 'aria-hidden': 'true' }));   // ✓ / ✗ per blank, not colour alone
       } else { var s = el('span', { html: p }); R().post(s); holder.appendChild(s); }
     });
     function accepted(k) { return [].concat(q.answer[k]).map(function (a) { return norm(a, q.exact); }); }
@@ -71,7 +72,15 @@
       },
       reveal: function () { for (var k in inputs) inputs[k].value = [].concat(q.answer[k])[0]; },
       disable: function () { for (var k in inputs) inputs[k].disabled = true; },
-      mark: function (res) { for (var k in inputs) { inputs[k].classList.toggle('ok', !!res && res.fields[k] === true); inputs[k].classList.toggle('bad', !!res && res.fields[k] === false); } }
+      mark: function (res) {
+        for (var k in inputs) {
+          var ok = !!res && res.fields[k] === true, bad = !!res && res.fields[k] === false;
+          inputs[k].classList.toggle('ok', ok); inputs[k].classList.toggle('bad', bad);
+          if (bad) inputs[k].setAttribute('aria-invalid', 'true'); else inputs[k].removeAttribute('aria-invalid');
+          inputs[k]._mark.textContent = ok ? '✓' : bad ? '✗' : '';
+          inputs[k]._mark.className = 'q-blank-mark' + (ok ? ' ok' : bad ? ' bad' : '');
+        }
+      }
     };
   };
 

@@ -101,8 +101,8 @@
   Tools.openTools = function (tab) {
     TDC.ui.drawer('tools', TDC.t('tools.title'), function (c) {
       var tabs = [['commands', 'tools.commands'], ['glossary', 'tools.glossary']];
-      var panel = el('div', { class: 'tool-panel' });
-      var bar = el('div', { class: 'tabs', role: 'tablist' }, tabs.map(function (t) {
+      var panel = el('div', { class: 'tool-panel', role: 'tabpanel', 'aria-label': TDC.t('tools.title') });
+      var bar = el('div', { class: 'tabs', role: 'tablist', 'aria-label': TDC.t('tools.title') }, tabs.map(function (t) {
         return el('button', { class: 'tab', role: 'tab', dataset: { tab: t[0] }, 'data-i18n': t[1], onclick: function () { show(t[0]); } });
       }));
       function show(id) {

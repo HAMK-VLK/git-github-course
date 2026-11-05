@@ -16,6 +16,25 @@
     else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
   }
 
+  // ARIA tab pattern for every role="tablist" in the course (lesson tabs, tools drawer, simulators): arrow keys /
+  // Home / End move between tabs and select them; only the selected tab is in the Tab order (roving tabindex).
+  function tabsOf(list) { return Array.prototype.filter.call(list.querySelectorAll('[role="tab"]'), function (t) { return t.closest('[role="tablist"]') === list && !t.disabled; }); }
+  function rove(list) { tabsOf(list).forEach(function (t) { t.tabIndex = t.getAttribute('aria-selected') === 'true' ? 0 : -1; }); }
+  document.addEventListener('focusin', function (e) { var l = e.target.closest && e.target.closest('[role="tablist"]'); if (l && tabsOf(l).some(function (t) { return t.getAttribute('aria-selected') === 'true'; })) rove(l); });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target, list = t.getAttribute && t.getAttribute('role') === 'tab' && t.closest('[role="tablist"]');
+    if (!list || ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].indexOf(e.key) < 0) return;
+    var all = tabsOf(list), i = all.indexOf(t), n = all.length;
+    var j = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1) + n) % n;
+    e.preventDefault();
+    var label = all[j].textContent;
+    all[j].click();
+    // the click may redraw the bar (simulators): find the same tab again before focusing it
+    var now = list.isConnected ? tabsOf(list)[j] : null;
+    if (!now) { var again = Array.prototype.filter.call(document.querySelectorAll('[role="tab"]'), function (x) { return x.textContent === label; })[0]; now = again; }
+    if (now) { now.focus(); var l2 = now.closest('[role="tablist"]'); if (l2) rove(l2); }
+  });
+
   TDC.ui = {
     /** opts: {title, body (string|Node), actions:[{label, primary, danger, run(close) -> false keeps open}], dismissable} */
     modal: function (opts) {
@@ -55,7 +74,7 @@
       var t = el('div', { class: 'toast toast-' + (kind || 'info'), role: kind === 'warn' || kind === 'bad' ? 'alert' : 'status' }, msg);
       host.appendChild(t);
       requestAnimationFrame(function () { t.classList.add('show'); });
-      setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, ms || 2600);
+      setTimeout(function () { t.classList.remove('show'); setTimeout(function () { t.remove(); }, 300); }, ms || (kind === 'warn' || kind === 'bad' ? 6000 : 2600));   // warnings need time to read
     },
     /** Side drawer; only one open at a time. render(container) fills it. */
     drawer: function (id, title, render) {

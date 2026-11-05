@@ -113,7 +113,8 @@
     function run(line, resumed) {   // resumed: after sign-in the command just continues, like real Git
       if (!resumed) {
         var echo = el('div', { class: 'term-o term-echo' });
-        echo.innerHTML = promptHtml() + '<br><span class="p-dollar">$</span> ' + U.escapeHtml(line);
+        // the long prompt is for the eye; screen readers hear only "$ command" in the output log
+        echo.innerHTML = '<span aria-hidden="true">' + promptHtml() + '<br></span><span class="p-dollar">$</span> ' + U.escapeHtml(line);
         outBox.appendChild(echo);
       }
       var res = line.trim() ? S.act({ c: line }) : { out: [] };
@@ -131,6 +132,8 @@
       // Tab completes only when something is typed: with an empty line Tab / Shift+Tab leave the terminal (no keyboard trap)
       else if (e.key === 'Tab' && !e.shiftKey && input.value.trim()) { e.preventDefault(); complete(); }
       else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); outBox.innerHTML = ''; }
+      // the output pane scrolls on its own: PageUp / PageDown scroll it without leaving the input
+      else if (e.key === 'PageUp' || e.key === 'PageDown') { e.preventDefault(); var sc = outBox.closest('.term-screen') || outBox; sc.scrollTop += (e.key === 'PageUp' ? -1 : 1) * sc.clientHeight * 0.8; }
     });
     function complete() {
       var v = input.value, parts = v.split(' '), last = parts[parts.length - 1], cands;

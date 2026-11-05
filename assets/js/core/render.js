@@ -16,9 +16,9 @@
   // <dfn data-term="key"> -> glossary popover; <kbd> keys and <code> stay as they are.
   R.postprocessors.push(function (root) {
     root.querySelectorAll('dfn[data-term]:not(.term)').forEach(function (d) {
-      d.tabIndex = 0; d.classList.add('term');
+      d.tabIndex = 0; d.classList.add('term'); d.setAttribute('role', 'button'); d.setAttribute('aria-haspopup', 'dialog');
       d.addEventListener('click', function () { TDC.tools && TDC.tools.termPopover(d, d.dataset.term); });
-      d.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); d.click(); } });
+      d.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); d.click(); } });
     });
   });
 
@@ -41,7 +41,8 @@
   B.code = function (b) {
     var lines = String(b.code).replace(/\n$/, '').split('\n');
     var shell = b.lang === 'bash' || b.lang === 'powershell' || b.lang === 'shell';
-    var pre = el('pre', { class: 'code-pre', tabindex: '0' }, el('code', {}, lines.map(function (l, i) {
+    // focusable (it may scroll sideways), so it needs a name: the block title or "Code example"
+    var pre = el('pre', { class: 'code-pre', tabindex: '0', role: 'region', 'aria-label': b.title ? I.tx(b.title).replace(/<[^>]+>/g, '') : TDC.t('a11y.code') }, el('code', {}, lines.map(function (l, i) {
       var m = shell && /^(\$|>|PS>) (.*)$/.exec(l);
       var row = m ? el('span', { class: 'cl cl-cmd' }, [el('span', { class: 'cl-prompt', 'aria-hidden': 'true' }, m[1] + ' '), m[2]])
         : el('span', { class: 'cl' + (shell ? ' cl-out' : '') }, l);
@@ -68,7 +69,7 @@
       el('tbody', {}, b.rows.map(function (r) { return el('tr', {}, r.map(function (c) { return cell(c, 'td'); })); }))
     ]);
     post(t);
-    return el('div', { class: 'table-wrap', tabindex: '0' }, t);
+    return el('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': b.caption ? I.tx(b.caption).replace(/<[^>]+>/g, '') : TDC.t('a11y.table') }, t);
   };
   B.figure = function (b) {
     var media = b.svg ? el('div', { class: 'fig-svg', html: I.tx(b.svg) }) : el('img', { src: b.img, alt: '', loading: 'lazy' });
@@ -305,7 +306,9 @@
     var ctx = { topic: topicId };
     var sections = t.sections.slice();
     var practiceLeft = (t.questions || []).filter(function (q) { return !JSON.stringify(t.sections).includes('"q":"' + q.id + '"'); });
-    if (practiceLeft.length) sections.push({ id: topicId + '-practice', title: TDC.t('topic.morePractice'), auto: true,
+    // "<id>-practice" unless the lesson already has a section with that id (i1 does): ids must be unique
+    var autoId = sections.some(function (s) { return s.id === topicId + '-practice'; }) ? topicId + '-more-practice' : topicId + '-practice';
+    if (practiceLeft.length) sections.push({ id: autoId, title: TDC.t('topic.morePractice'), auto: true,
       blocks: practiceLeft.map(function (q) { return { type: 'question', q: q.id, id: q.id + '-blk' }; }) });
 
     var visited = ((TDC.store.doc.progress[topicId] || {}).visited) || {};

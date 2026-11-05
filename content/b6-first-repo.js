@@ -148,7 +148,7 @@
           ['<code>nothing to commit, working tree clean</code>', 'Everything is saved', 'All three agree']
         ] },
         { id: 'b6-q-status-blk', type: 'question', q: 'b6-q-status' },
-        { id: 'b6-addall-t', type: 'text', html: '<h4>Shortcuts</h4><ul><li><code>git add .</code> stages everything in the folder (the dot means "here"). Run <code>git status</code> first so you know what you are about to include.</li><li><code>git commit -am "message"</code> stages and commits every change to files Git already tracks in one go.</li></ul>' },
+        { id: 'b6-addall-t', type: 'text', html: '<h3>Shortcuts</h3><ul><li><code>git add .</code> stages everything in the folder (the dot means "here"). Run <code>git status</code> first so you know what you are about to include.</li><li><code>git commit -am "message"</code> stages and commits every change to files Git already tracks in one go.</li></ul>' },
         { id: 'b6-caveat', type: 'callout', kind: 'warn', title: 'commit -a skips new files', html: '<code>git commit -a</code> only picks up files that are already tracked. A brand-new (untracked) file is silently left out. Use <code>git add</code> for new files first.' },
         { id: 'b6-msg-h', type: 'h', text: 'Writing a good commit message' },
         { id: 'b6-msg-t', type: 'text', html: '<p>The message is a note to your future self (and your teammates). Say <em>what</em> the snapshot contains, in a short sentence that starts with a verb.</p>' },

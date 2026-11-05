@@ -1,6 +1,6 @@
 /* UI strings (English). Lesson content lives in content/*.js. */
 TDC.i18n.add('en', {
-  'a11y.skip': 'Skip to content',
+  'a11y.skip': 'Skip to content', 'a11y.code': 'Code example', 'a11y.table': 'Table',
   'app.title': 'Git & GitHub: version control for everyone',
   'app.short': '& GitHub',
   'nav.home': 'Home',
@@ -109,7 +109,7 @@ TDC.i18n.add('en', {
   'roles.note.admin': 'Admin: full control of one repository (access, rules). Usually the supervisor or the team that owns it.',
   'roles.note.owner': 'Organization owners can do everything in every repository. Keep this to a few IT or staff accounts.',
   'roles.footnote': 'Org owner only: unless the organization allows members to change visibility or delete/transfer repositories, even repository admins cannot.',
-  'gi.ignored': 'ignored', 'gi.tracked': 'tracked', 'gi.files': 'Files in the project folder',
+  'gi.summary': '{i} ignored, {t} tracked', 'gi.ignored': 'ignored', 'gi.tracked': 'tracked', 'gi.files': 'Files in the project folder',
   'gi.help': 'One pattern per line: *.log, build/, /only-at-root.txt, !keep-this.log, # comment',
   'md.preview': 'Preview (as GitHub shows it)',
   'gcm.browser': 'Sign in with your browser', 'gcm.note': 'In real life this opens github.com, where you sign in (with two-factor authentication). Git remembers you afterwards.'

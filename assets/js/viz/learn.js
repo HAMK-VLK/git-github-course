@@ -19,7 +19,7 @@
     var vs = cfg.versions || [], st = { viewed: {}, count: 0 }, cur = vs.length - 1;
     st.viewed[cur] = true; st.count = Object.keys(st.viewed).length;
     var tasks = withTasks(host, cfg, ctx, function () { return st; });
-    var chaos = el('div', { class: 'tl-chaos' }, [el('h4', {}, '📁 ' + T('tl.without')), el('ul', {}, (cfg.chaos || []).map(function (f) { return el('li', {}, ['📄 ', f]); })),
+    var chaos = el('div', { class: 'tl-chaos' }, [el('h3', { class: 'tl-h' }, '📁 ' + T('tl.without')), el('ul', {}, (cfg.chaos || []).map(function (f) { return el('li', {}, ['📄 ', f]); })),
       el('p', { class: 'muted small' }, T('tl.withoutNote'))]);
     var range = el('input', { type: 'range', min: 0, max: Math.max(0, vs.length - 1), value: cur, 'aria-label': T('tl.slider') });
     var meta = el('div', { class: 'tl-meta', 'aria-live': 'polite' }), doc = el('div', { class: 'diff tl-doc' });
@@ -38,7 +38,7 @@
       tasks.refresh();
     }
     range.addEventListener('input', function () { show(+range.value); });
-    host.append(el('div', { class: 'tl' }, [chaos, el('div', { class: 'tl-git' }, [el('h4', {}, '🕘 ' + T('tl.with')), dots, range, meta, doc, el('p', { class: 'muted small' }, T('tl.withNote'))])]));
+    host.append(el('div', { class: 'tl' }, [chaos, el('div', { class: 'tl-git' }, [el('h3', { class: 'tl-h' }, '🕘 ' + T('tl.with')), dots, range, meta, doc, el('p', { class: 'muted small' }, T('tl.withNote'))])]));
     show(cur);
     return {};
   });
@@ -59,7 +59,7 @@
     var tasks = withTasks(host, cfg, ctx, function () { return st; });
     var cols = ROLES.concat(cfg.owner === false ? [] : ['owner']);
     var bar = el('div', { class: 'tabs roles-bar', role: 'tablist', 'aria-label': T('roles.pick') });
-    var table = el('div', { class: 'table-wrap', tabindex: '0' });
+    var table = el('div', { class: 'table-wrap', tabindex: '0', role: 'tabpanel', 'aria-label': T('roles.pick') });
     var note = el('p', { class: 'roles-note', 'aria-live': 'polite' });
     cols.forEach(function (r) { bar.appendChild(el('button', { class: 'tab', role: 'tab', dataset: { r: r }, onclick: function () { pick(r); } }, T('roles.r.' + r))); });
     function has(role, need) { return role === 'owner' || (need !== 'owner' && ROLES.indexOf(role) >= ROLES.indexOf(need)); }
@@ -91,7 +91,8 @@
     ta.value = saved.text != null ? saved.text : (cfg.start || '');
     var st = {};
     var tasks = withTasks(host, cfg, ctx, function () { return st; });
-    var list = el('ul', { class: 'gi-files', 'aria-live': 'polite' });
+    // announce a short summary, not the whole rebuilt list after every keystroke
+    var list = el('ul', { class: 'gi-files' }), sum = el('p', { class: 'sr-only', role: 'status' }), stored = saved.text;
     function update() {
       var rules = TDC.git.ignoreRules(ta.value);
       st.text = ta.value; st.ignored = function (p) { return TDC.git.isIgnored(rules, p); };
@@ -101,12 +102,16 @@
         var ig = st.ignored(p);
         list.appendChild(el('li', { class: 'gi-file ' + (ig ? 'is-ign' : 'is-trk') }, [el('span', { class: 'gi-name' }, p), el('span', { class: 'gi-tag' }, ig ? T('gi.ignored') : T('gi.tracked'))]));
       });
-      ctx.setState({ text: ta.value });
+      var s = T('gi.summary', { i: (cfg.files || []).length - st.tracked.length, t: st.tracked.length });
+      if (sum.textContent !== s) sum.textContent = s;
+      // save only what the learner typed (opening the lesson stores nothing)
+      if (ta.value !== stored && !(stored == null && ta.value === (cfg.start || ''))) { stored = ta.value; ctx.setState({ text: ta.value }); }
       tasks.refresh();
     }
     ta.addEventListener('input', U.debounce(update, 150));
+    ta.addEventListener('blur', update);   // the debounce must not lose the last keystrokes
     host.append(el('div', { class: 'gi' }, [el('label', { class: 'gi-edit' }, [el('strong', {}, '.gitignore'), ta, el('span', { class: 'muted small' }, T('gi.help'))]),
-      el('div', {}, [el('strong', {}, T('gi.files')), list])]));
+      el('div', {}, [el('strong', {}, T('gi.files')), list, sum])]));
     update();
     return {};
   });
@@ -116,10 +121,15 @@
     var saved = ctx.getState() || {};
     var ta = el('textarea', { class: 'input md-ta', rows: 12, spellcheck: 'false', 'aria-label': 'README.md' });
     ta.value = saved.text != null ? saved.text : (cfg.start || '');
-    var prev = el('div', { class: 'gh-md md-prev' }), st = {};
+    var prev = el('div', { class: 'gh-md md-prev' }), st = {}, stored = saved.text;
     var tasks = withTasks(host, cfg, ctx, function () { return st; });
-    function update() { st.text = ta.value; st.html = V.md(ta.value); prev.innerHTML = st.html; ctx.setState({ text: ta.value }); tasks.refresh(); }
+    function update() {
+      st.text = ta.value; st.html = V.md(ta.value); prev.innerHTML = st.html; V.nestHeadings(prev);
+      if (ta.value !== stored && !(stored == null && ta.value === (cfg.start || ''))) { stored = ta.value; ctx.setState({ text: ta.value }); }   // nothing saved just for opening
+      tasks.refresh();
+    }
     ta.addEventListener('input', U.debounce(update, 200));
+    ta.addEventListener('blur', update);   // the debounce must not lose the last keystrokes
     host.append(el('div', { class: 'md-split' }, [el('div', {}, [el('strong', {}, '✎ README.md'), ta]), el('div', {}, [el('strong', {}, '👁 ' + T('md.preview')), prev])]));
     update();
     return {};

@@ -199,22 +199,32 @@
     ]);
     var tasks = V.tasks(cfg.tasks, ctx, function () { return w; });
     var termBox = el('div');
-    var term = cfg.terminal ? V.terminalView({ S: S, title: 'Git Bash', onChange: function () { render(true); } }) : null;
+    var term = cfg.terminal ? V.terminalView({ S: S, title: 'Git Bash', onChange: function () { if (typing) tasks.refresh(); else render(true); } }) : null;
+    // a command in the embedded terminal redraws the page, unless the learner has typed into it (web editor, comment):
+    // that text would be lost. Like a real browser tab, the page then updates on the next navigation.
+    var typing = false;
+    page.addEventListener('input', function () { typing = true; });
     if (term) termBox.append(el('h3', { class: 'panel-title gh-term-title' }, T('gh.yourComputer')), term.node);
     var resetBtn = el('button', { class: 'btn btn-small btn-ghost', onclick: function () {
       TDC.ui.confirm(T('sim.resetTitle'), T('sim.resetBody'), T('sim.reset')).then(function (ok) { if (ok) { w = S.reset(); w.me = cfg.world && cfg.world.me || 'student'; route = cfg.start || '/'; back = []; if (term) term.boot(); render(); } });
     } }, '↺ ' + T('sim.reset'));
     host.classList.add('sim-github');
-    host.append(tasks, personaBox, el('div', { class: 'gui-stage' }, [browser, overlay]), termBox, el('div', { class: 'sim-actions' }, [resetBtn]));
+    // refusals ("you need Write access…") are the lesson: keep the last one on screen until the next page, not only in a toast
+    var deniedBox = el('div', { class: 'sim-denied', hidden: true });   // not a live region: the warning toast already announces it
+    host.append(tasks, personaBox, deniedBox, el('div', { class: 'gui-stage' }, [browser, overlay]), termBox, el('div', { class: 'sim-actions' }, [resetBtn]));
 
     function act(name, args) { var e = Object.assign({ a: name }, args || {}); var r = S.act(e); return r; }
     // leaving the upload page (after the commit, or away) forgets the chosen files, as a real page load does
-    function go(path) { if (path !== route) back.push(route); if (path.indexOf('/upload/') < 0) ui.uploadChosen = null; route = path; S.act({ ev: { type: 'visit', path: path } }); render(); host.scrollIntoView({ block: 'nearest' }); }
+    function go(path) { if (path !== route) back.push(route); if (path.indexOf('/upload/') < 0) ui.uploadChosen = null; route = path; deniedBox.hidden = true; S.act({ ev: { type: 'visit', path: path } }); render(); host.scrollIntoView({ block: 'nearest' }); }
     function click(id) { S.act({ ev: { type: 'click', id: id } }); tasks.refresh(); }
     function link(path, kids, attrs) { return el('a', Object.assign({ href: '#', class: 'gh-link', onclick: function (e) { e.preventDefault(); go(path); } }, attrs || {}), kids); }
     function btn(label, onclick, cls, attrs) { return el('button', Object.assign({ class: 'gh-btn ' + (cls || ''), onclick: onclick }, attrs || {}), label); }
     // with action/slug the refusal is logged (tasks can check it) and the task list refreshed
-    function denied(msg, action, slug) { if (action) { S.act({ ev: { type: 'denied', action: action, slug: slug } }); tasks.refresh(); } TDC.ui.toast(msg, 'warn', 4500); }
+    function denied(msg, action, slug) { if (action) { S.act({ ev: { type: 'denied', action: action, slug: slug } }); tasks.refresh(); }
+      deniedBox.innerHTML = ''; deniedBox.hidden = false;
+      deniedBox.append(el('span', {}, '⚠ ' + msg), el('button', { class: 'icon-btn sm', 'aria-label': T('common.close'), onclick: function () { deniedBox.hidden = true; } }, '✕'));
+      TDC.ui.toast(msg, 'warn', 6000);
+    }
     function me() { return w.server.users[w.me] || { login: w.me, name: w.me, keys: [], tokens: [] }; }
     function avatar(login, big) { return el('span', { class: 'gh-av' + (big ? ' big' : ''), 'aria-hidden': 'true', style: { '--h': (login || '?').split('').reduce(function (s, c) { return s + c.charCodeAt(0); }, 0) % 360 } }, (login || '?')[0].toUpperCase()); }
     function md(text) { return el('div', { class: 'gh-md', html: V.md(text) }); }
@@ -273,8 +283,9 @@
 
     // ---------- pages ----------
     // after a page change focus the new page's heading, so keyboard users land on the new content
-    function render(keepScroll) { V.keepFocus(host, function () { draw(keepScroll); }, function () { var h = page.querySelector('h1, h2, h3') || page; h.setAttribute('tabindex', '-1'); return h; }); }
+    function render(keepScroll) { V.keepFocus(host, function () { draw(keepScroll); V.nestHeadings(page); }, function () { var h = page.querySelector('h1, h2, h3') || page; h.setAttribute('tabindex', '-1'); return h; }); }
     function draw(keepScroll) {
+      typing = false;
       addr.textContent = route === '/' ? '' : route;
       renderPersona(); renderTop();
       page.innerHTML = '';
@@ -309,8 +320,10 @@
         var l = user.value.trim();
         if (!/^\S+@\S+\.\S+$/.test(email.value)) { msg.textContent = T('gh.badEmail'); return; }
         if (pass.value.length < 15 && !(pass.value.length >= 8 && /\d/.test(pass.value) && /[a-z]/.test(pass.value))) { msg.textContent = T('gh.weakPassword'); return; }
-        if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/i.test(l)) { msg.textContent = T('gh.badUsername'); return; }
-        if (w.server.users[l] || w.server.orgs[l]) { msg.textContent = T('gh.usernameTaken', { u: l }); return; }
+        // GitHub: letters, digits, single hyphens (not at either end), max 39; names are case-insensitive
+        if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/i.test(l) || /--/.test(l)) { msg.textContent = T('gh.badUsername'); return; }
+        var taken = Object.keys(w.server.users).concat(Object.keys(w.server.orgs)).some(function (x) { return x.toLowerCase() === l.toLowerCase(); });
+        if (taken) { msg.textContent = T('gh.usernameTaken', { u: l }); return; }
         act('signup', { login: l, email: email.value.trim() }); go('/');
         TDC.ui.toast(T('gh.welcome', { u: l }), 'ok');
       }
@@ -702,7 +715,7 @@
           btn(up ? T('gh.contribute') : T('gh.compareAndPr'), function () { click('compare-pr'); ui.compare = { base: baseB, head: branch, headRepo: slug }; go('/' + baseSlug + '/compare'); }, 'gh-green gh-sm', { 'data-id': up ? 'contribute' : null })]) : null,
         files, readmePath ? el('div', { class: 'gh-box gh-readme', 'data-id': 'readme' }, [el('div', { class: 'gh-box-h' }, [el('strong', {}, '📖 README')]), md(t[readmePath])]) : null]);
       var lic = Object.keys(t).filter(function (p) { return /^licen[sc]e/i.test(p); })[0];
-      var side = el('aside', { class: 'gh-about' }, [el('h3', { class: 'gh-about-h' }, ['About', can(slug, 'settings') ? btn('⚙', function () { aboutDialog(slug, r); }, 'gh-mini-btn', { 'aria-label': 'Edit repository details', 'data-id': 'about-gear' }) : null]), el('p', {}, r.description || el('span', { class: 'muted' }, T('gh.noDescription'))),
+      var side = el('div', { class: 'gh-about' }, [el('h3', { class: 'gh-about-h' }, ['About', can(slug, 'settings') ? btn('⚙', function () { aboutDialog(slug, r); }, 'gh-mini-btn', { 'aria-label': 'Edit repository details', 'data-id': 'about-gear' }) : null]), el('p', {}, r.description || el('span', { class: 'muted' }, T('gh.noDescription'))),
         r.topics.length ? el('div', { class: 'gh-topics' }, r.topics.map(function (x) { return el('span', { class: 'gh-topic' }, x); })) : null,
         el('ul', { class: 'gh-about-list' }, [readmePath ? el('li', {}, '📖 Readme') : null, lic ? el('li', {}, '⚖ ' + (t[lic].split('\n')[0] || 'License')) : null,
           el('li', {}, '☆ ' + r.stars + ' stars'), el('li', {}, '🏷 ' + Object.keys(r.tags).length + ' tags'), el('li', {}, T('gh.yourRole') + ': ' + ROLE_LABEL[role(slug)])]),
@@ -803,7 +816,7 @@
         var ch = {}, v = ta.value; if (v && !/\n$/.test(v)) v += '\n';
         if (!isNew && n === path && v === t[path]) { denied(T('gh.noChanges')); return null; }
         if (!isNew && n !== path) ch[path] = null;
-        if (isNew && t[n] != null) { denied(T('gh.fileExists', { f: n })); return null; }
+        if ((isNew || n !== path) && t[n] != null) { denied(T('gh.fileExists', { f: n })); return null; }   // new name or rename onto an existing file
         ch[n] = v; return ch;
       };
       page.append(!writer ? el('div', { class: 'gh-flash warn' }, T('gh.noWriteFork', { f: w.me + '/' + r.name })) : null,

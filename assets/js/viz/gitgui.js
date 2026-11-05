@@ -8,6 +8,7 @@
   var U = TDC.util, el = U.el, V = TDC.viz, T = TDC.t;
   var KIND = { new: ['+', 'A', 'U'], mod: ['•', 'M', 'M'], del: ['−', 'D', 'D'], conflict: ['!', 'C', '!'] };
   var KIND_SR = { new: 'new file', mod: 'modified', del: 'deleted', conflict: 'conflict' };   // read instead of the symbol
+  function vsLetter(kind, letter) { return el('span', { class: 'vs-letter' }, [el('span', { 'aria-hidden': 'true' }, letter), el('span', { class: 'sr-only' }, ', ' + KIND_SR[kind])]); }
 
   function apply(w, e) {
     if (e.c != null) return w.exec(e.c);
@@ -36,7 +37,8 @@
   TDC.widgets.register('gitgui', function (host, cfg, ctx) {
     var skin = cfg.skin === 'vscode' ? 'vscode' : 'desktop';
     var S = V.session(cfg, ctx, apply), w;
-    var ui = { tab: 'changes', sel: null, checked: {}, open: null, buf: null, dirty: false, side: 'scm', msg: '', desc: '', histSel: null };
+    function freshUi() { return { tab: 'changes', sel: null, checked: {}, open: null, buf: null, dirty: false, side: 'scm', msg: '', desc: '', histSel: null }; }
+    var ui = freshUi();
     var app = el('div', { class: 'gui gui-' + skin });
     var below = el('div', { class: 'gui-below' });
     var overlay = el('div', { class: 'gui-overlay' });
@@ -44,7 +46,7 @@
     (cfg.panels || []).forEach(function (p) { var b = el('div', { class: 'panel-body' }); panels[p] = b; panelBox.appendChild(el('section', { class: 'term-panel' }, [el('h3', { class: 'panel-title' }, T('panel.' + p)), b])); });
     var tasks = V.tasks(cfg.tasks, ctx, function () { return w; });
     var resetBtn = el('button', { class: 'btn btn-small btn-ghost', onclick: function () {
-      TDC.ui.confirm(T('sim.resetTitle'), T('sim.resetBody'), T('sim.reset')).then(function (ok) { if (ok) { w = S.reset(); ui.open = null; ui.checked = {}; render(); } });
+      TDC.ui.confirm(T('sim.resetTitle'), T('sim.resetBody'), T('sim.reset')).then(function (ok) { if (ok) { w = S.reset(); ui = freshUi(); startUp(false); render(); } });   // a reset starts exactly like a first visit
     } }, '↺ ' + T('sim.reset'));
     host.classList.add('sim-gui');
     host.append(tasks, el('div', { class: 'gui-stage' }, [app, overlay]), below, el('div', { class: 'sim-actions' }, [resetBtn]), panelBox);
@@ -276,8 +278,8 @@
       var unstaged = changes.filter(function (c) { return c.unstaged && c.kind !== 'conflict'; });
       var conflicts = changes.filter(function (c) { return c.kind === 'conflict'; });
       var act = el('div', { class: 'vs-act' }, [['explorer', '🗎', T('gui.vsExplorer')], ['scm', '⑂', T('gui.vsScm')]].map(function (a) {
-        return el('button', { class: 'vs-act-btn' + (ui.side === a[0] ? ' on' : ''), title: a[2], 'aria-label': a[2], onclick: function () { ui.side = a[0]; after(); } },
-          [a[1], a[0] === 'scm' && changes.length ? el('span', { class: 'vs-badge' }, String(changes.length)) : null]);
+        return el('button', { class: 'vs-act-btn' + (ui.side === a[0] ? ' on' : ''), title: a[2], 'aria-label': a[2] + (a[0] === 'scm' && changes.length ? ' (' + changes.length + ')' : ''), 'aria-pressed': String(ui.side === a[0]), onclick: function () { ui.side = a[0]; after(); } },
+          [a[1], a[0] === 'scm' && changes.length ? el('span', { class: 'vs-badge', 'aria-hidden': 'true' }, String(changes.length)) : null]);
       }));
       var side = el('div', { class: 'vs-side' });
       if (ui.side === 'explorer') {
@@ -291,7 +293,7 @@
         side.append(el('div', { class: 'vs-side-h' }, T('gui.vsExplorer').toUpperCase()), el('div', { class: 'vs-folder' }, '⌄ ' + folder.split('/').pop().toUpperCase()),
           el('ul', { class: 'vs-files' }, files.map(function (f) {
             var c = ch[f];
-            return el('li', {}, el('button', { class: 'vs-file' + (ui.open === f ? ' on' : '') + (c ? ' vk-' + c.kind : ''), onclick: function () { ui.open = f; ui.buf = null; ui.dirty = false; after(); } }, [f, c ? el('span', { class: 'vs-letter' }, KIND[c.kind][2]) : null]));
+            return el('li', {}, el('button', { class: 'vs-file' + (ui.open === f ? ' on' : '') + (c ? ' vk-' + c.kind : ''), 'aria-current': ui.open === f ? 'true' : null, onclick: function () { ui.open = f; ui.buf = null; ui.dirty = false; after(); } }, [f, c ? vsLetter(c.kind, KIND[c.kind][2]) : null]));
           })), nf);
       } else if (!r) {
         side.append(el('div', { class: 'vs-side-h' }, T('gui.vsScm').toUpperCase()), el('p', { class: 'small' }, T('gui.vsNoRepo')),
@@ -327,7 +329,7 @@
             kind === 'staged' ? el('button', { class: 'vs-icon', title: T('gui.vsUnstageAll'), 'aria-label': T('gui.vsUnstageAll'), onclick: function () { run('git restore --staged .', true); after(); } }, '−') : null]),
             el('ul', { class: 'vs-files' }, list.map(function (c) {
               return el('li', { class: 'vs-change' }, [
-                el('button', { class: 'vs-file vk-' + c.kind, onclick: function () { ui.open = c.p; ui.buf = null; ui.dirty = false; ui.diff = kind !== 'merge'; after(); } }, [c.p, el('span', { class: 'vs-letter' }, kind === 'staged' ? KIND[c.kind][1] : KIND[c.kind][2])]),
+                el('button', { class: 'vs-file vk-' + c.kind, onclick: function () { ui.open = c.p; ui.buf = null; ui.dirty = false; ui.diff = kind !== 'merge'; after(); } }, [c.p, vsLetter(c.kind, kind === 'staged' ? KIND[c.kind][1] : KIND[c.kind][2])]),
                 kind === 'unstaged' && !c.untracked ? el('button', { class: 'vs-icon', title: T('gui.vsDiscard'), 'aria-label': T('gui.vsDiscard') + ' ' + c.p, onclick: function () { run('git restore ' + V.q(c.p)); after(); } }, '↶') : null,
                 kind === 'staged' ? el('button', { class: 'vs-icon', title: T('gui.vsUnstage'), 'aria-label': T('gui.vsUnstage') + ' ' + c.p, onclick: function () { run('git restore --staged ' + V.q(c.p)); after(); } }, '−')
                   : el('button', { class: 'vs-icon', title: T('gui.vsStage'), 'aria-label': T('gui.vsStage') + ' ' + c.p, onclick: function () {
@@ -380,7 +382,7 @@
       if (ui.refocus && ta) { ui.refocus = false; ta.focus(); }   // keep Ctrl+S working after an Accept link, as in VS Code
     }
 
-    function render() { V.keepFocus(host, draw); }
+    function render() { V.keepFocus(host, function () { draw(); V.nestHeadings(app); }); }
     function draw() {
       var r = repo();
       if (skin === 'desktop') { renderDesktop(r); renderEditorPane(r); } else renderVsCode(r);
@@ -389,10 +391,13 @@
       if (panels.remote) V.remotePanel(panels.remote, w);
       tasks.refresh();
     }
+    function startUp(restored) {
+      if (cfg.folder && !restored) { w.mkdirp(cfg.folder); w.cwd = w.abs(cfg.folder); }
+      // GitHub Desktop opens the last repository it knows; start in the first local one.
+      if (skin === 'desktop' && !w.repo() && Object.keys(w.repos).length) w.cwd = Object.keys(w.repos)[0];
+    }
     w = S.boot();
-    if (cfg.folder && !S.restored) { w.mkdirp(cfg.folder); w.cwd = w.abs(cfg.folder); }
-    // GitHub Desktop opens the last repository it knows; start in the first local one.
-    if (skin === 'desktop' && !w.repo() && Object.keys(w.repos).length) w.cwd = Object.keys(w.repos)[0];
+    startUp(S.restored);
     if (S.restored) TDC.ui.toast(T('gui.restored'));
     render();
     ctx.onTheme(function () { if (panels.graph) TDC.gitgraph.draw(panels.graph, w, repo()); });

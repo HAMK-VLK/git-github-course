@@ -61,6 +61,20 @@
 
   // Links in simulated Markdown go nowhere. A listener, not inline onclick, so the site's CSP can forbid inline code.
   document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('a.md-fake')) e.preventDefault(); });
+  /** Simulated pages and Markdown sit inside a lesson (h1 title, h2 sections, h3 block titles): for screen readers
+   *  their headings continue one level below the lesson heading before them, without gaps (aria-level). The tags
+   *  stay, so the page still looks like the real tool. */
+  V.nestHeadings = function (root) {
+    var hs = Array.prototype.slice.call(root.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+    if (!hs.length) return;
+    var base = 3;
+    // lesson headings have no aria-level (only simulated/Markdown ones get one): the last one before root sets the base
+    Array.prototype.forEach.call(document.querySelectorAll('main h1:not([aria-level]), main h2:not([aria-level]), main h3:not([aria-level]), main h4:not([aria-level])'), function (h) {
+      if (!root.contains(h) && (h.compareDocumentPosition(root) & Node.DOCUMENT_POSITION_FOLLOWING)) base = +h.tagName[1] + 1;
+    });
+    var used = hs.map(function (h) { return +h.tagName[1]; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort();
+    hs.forEach(function (h) { h.setAttribute('aria-level', String(Math.min(6, base + used.indexOf(+h.tagName[1])))); });
+  };
   /** Mini Markdown -> HTML (escaped first, so it is safe for learner input). */
   V.md = function (src) {
     var out = [], list = null, inCode = false, code = [], para = [];
@@ -85,7 +99,7 @@
       if (inCode) { code.push(l); continue; }
       var m;
       if (!l.trim()) { flushPara(); flushList(); continue; }
-      if ((m = /^(#{1,6})\s+(.*)$/.exec(l))) { flushPara(); flushList(); out.push('<h' + m[1].length + '>' + inline(m[2]) + '</h' + m[1].length + '>'); continue; }
+      if ((m = /^(#{1,6})\s+(.*)$/.exec(l))) { flushPara(); flushList(); out.push('<h' + m[1].length + ' aria-level="' + Math.min(6, m[1].length + 3) + '">' + inline(m[2]) + '</h' + m[1].length + '>'); continue; }
       if (/^(-{3,}|\*{3,})$/.test(l.trim())) { flushPara(); flushList(); out.push('<hr>'); continue; }
       if ((m = /^>\s?(.*)$/.exec(l))) { flushPara(); flushList(); out.push('<blockquote>' + inline(m[1]) + '</blockquote>'); continue; }
       if (/^\|.*\|\s*$/.test(l) && /^\|[\s:|-]+\|\s*$/.test(L[i + 1] || '')) {

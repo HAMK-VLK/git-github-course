@@ -58,7 +58,7 @@
     var top = 24 + maxTop * 20, width = left + (L.commits.length - 1) * DX + right, height = top + (L.lanes - 1) * DY + 26 + maxBottom * 20;
     var X = function (s) { return left + L.col[s] * DX; }, Y = function (s) { return top + L.lane[s] * DY; };
     var color = function (ln) { return TDC.theme.color('--c-' + (ln % 6 + 1)); };
-    var svg = S('svg', { class: 'gg-svg', viewBox: '0 0 ' + width + ' ' + height, width: width, height: height, role: 'img', 'aria-label': TDC.t('graph.aria', { n: L.commits.length }) });
+    var svg = S('svg', { class: 'gg-svg', viewBox: '0 0 ' + width + ' ' + height, width: width, height: height, role: 'group', 'aria-label': TDC.t('graph.aria', { n: L.commits.length }) });
     var info = el('div', { class: 'gg-detail', 'aria-live': 'polite' });
     // edges
     L.commits.forEach(function (c) {
@@ -81,6 +81,7 @@
         info.append(el('code', {}, w.short(c.sha)), ' ', el('strong', {}, c.msg.split('\n')[0]), el('span', { class: 'muted' }, ' — ' + c.author + ', ' + w.fmtTime(c.time).slice(0, 16)));
       };
       g.addEventListener('click', show); g.addEventListener('focus', show);
+      g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(); } });
       svg.appendChild(g);
       place[c.sha].forEach(function (p) {
         var ly = p.below ? y + R + 8 + p.lv * 20 : y - R - 24 - p.lv * 20;
@@ -88,7 +89,7 @@
         svg.appendChild(S('text', { x: x, y: ly + 12.5, class: 'gg-pill-text', text: p.d[1] }));
       });
     });
-    var wrap = el('div', { class: 'gg-scroll', tabindex: '0' }, svg);
+    var wrap = el('div', { class: 'gg-scroll', tabindex: '0', role: 'region', 'aria-label': TDC.t('graph.aria', { n: L.commits.length }) }, svg);
     host.append(wrap, info);
     wrap.scrollLeft = width;   // newest commits are on the right
     var last = L.commits[L.commits.length - 1];
