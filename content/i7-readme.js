@@ -106,17 +106,17 @@
           ['No licence', 'Private work', 'Nothing is allowed without asking you.']
         ], caption: 'Common choices. Creative Commons licences are made for text and media, not for software.', compact: true },
         { id: 'i7-li-c', type: 'callout', kind: 'school', title: 'Ask the school first', html: 'Work done for HAMK (a thesis for a company, course material, a research project) may belong partly to the school or to a partner. Do not choose a licence on your own for such work: ask your supervisor or the school\'s copyright or IT contact. When in doubt, keep the repository private and without a public licence until you have an answer.' },
-        { id: 'i7-li-t2', type: 'text', html: '<p>On github.com you can pick a licence when you create a repository (<b>Choose a license</b>), or later by adding a file called <code>LICENSE</code>. When you type that name in <b>Add file → Create new file</b>, real GitHub shows a <b>Choose a license template</b> button. The practice site has no such button: add the file by hand there.</p>' },        { id: 'i7-q-lic-blk', type: 'question', q: 'i7-q-lic' }
+        { id: 'i7-li-t2', type: 'text', html: '<p>On github.com you can pick a licence when you create a repository (<b>Add license</b>), or later by adding a file called <code>LICENSE</code>. When you type that name in <b>Add file → Create new file</b>, real GitHub shows a <b>Choose a license template</b> button. The practice site has no such button: add the file by hand there.</p>' },        { id: 'i7-q-lic-blk', type: 'question', q: 'i7-q-lic' }
       ] },
       { id: 'i7-settings', title: 'Citation, description, topics and templates', blocks: [
         { id: 'i7-st-t', type: 'text', html: '<p>Four small things make a repository easier to find and reuse:</p>' },
         { id: 'i7-st-l', type: 'list', items: [
           '<b>CITATION.cff</b>: a small text file in the top folder that tells people how to cite your work. GitHub then shows a <b>Cite this repository</b> link.',          '<b>Description</b>: one line shown in the <b>About</b> box and in search results. Edit it with the gear ⚙ next to <b>About</b> on the repository page.',
-          '<dfn data-term="topic">Topics</dfn>: keywords such as <code>thesis</code> or <code>course-material</code>. Edit them with the same gear ⚙ next to <b>About</b>.',          '<dfn data-term="template">Template repository</dfn>: tick <b>Template repository</b> in <b>Settings → General</b>. Others then get a green <b>Use this template</b> button to start a new repository with the same files. Ideal for a thesis skeleton or a course starter.'
+          '<dfn data-term="topic">Topics</dfn>: keywords such as <code>thesis</code> or <code>course-material</code>. Edit them with the same gear ⚙ next to <b>About</b>. Topics use lowercase letters, numbers and hyphens (no spaces inside a topic), up to 50 characters each and 20 per repository.',          '<dfn data-term="template">Template repository</dfn>: tick <b>Template repository</b> in <b>Settings → General</b>. Others then get a green <b>Use this template</b> button to start a new repository with the same files. Ideal for a thesis skeleton or a course starter.'
         ] },
         { id: 'i7-st-code', type: 'code', lang: 'yaml', title: 'CITATION.cff', code: 'cff-version: 1.2.0\nmessage: "If you use this material, please cite it as below."\ntitle: "Web development course material"\nauthors:\n  - family-names: Teacher\n    given-names: Tiina\nversion: 1.0.0\ndate-released: 2027-01-15\nlicense: CC-BY-4.0' },
         { id: 'i7-st-sim', type: 'interactive', widget: 'github', title: 'Make course-web-dev reusable',
-          caption: 'You are <b>aino</b>, with Admin access to <code>course-web-dev</code>. Use <b>Add file → Create new file</b> for the two files, the gear ⚙ next to <b>About</b> for the description and topics, and <b>Settings → General</b> for the template. The practice site does not check what is inside the files.',
+          caption: 'You are <b>aino</b>, with Admin access to <code>course-web-dev</code>. Use <b>Add file → Create new file</b> for the two files, the gear ⚙ next to <b>About</b> for the description and topics, and <b>Settings → General</b> for the template. Then try the template yourself with <b>Use this template</b>. The practice site does not check what is inside the files.',
           config: {
             start: '/' + SLUG, personas: ['aino'], terminal: false, world: WORLD,
             tasks: [
@@ -124,12 +124,13 @@
               { id: 'cff', text: 'Add <code>CITATION.cff</code> and commit it', check: function (w) { return tree(w)['CITATION.cff'] != null; }, solution: 'Add file → Create new file → name CITATION.cff → paste the example → Commit changes…' },
               { id: 'desc', text: 'Set a <b>Description</b> with the gear ⚙ next to <b>About</b>', check: function (w) { return !!w.server.repos[SLUG].description; }, solution: 'Repository page → ⚙ next to About → Description → Save changes' },
               { id: 'topics', text: 'Add at least two <b>topics</b> (separated by spaces)', check: function (w) { return (w.server.repos[SLUG].topics || []).length >= 2; }, hint: 'The gear next to About opens Edit repository details, with a Topics box.', solution: '⚙ next to About → Topics: course-material web → Save changes' },
-              { id: 'tpl', text: 'Mark the repository as a <b>template repository</b>', check: function (w) { return !!w.server.repos[SLUG].template; }, solution: 'Settings → General → tick Template repository → Save changes' }
+              { id: 'tpl', text: 'Mark the repository as a <b>template repository</b>', check: function (w) { return !!w.server.repos[SLUG].template; }, solution: 'Settings → General → tick Template repository → Save changes' },
+              { id: 'use', text: 'Start a new repository from it with <b>Use this template</b>', check: function (w) { return Object.keys(w.server.repos).some(function (s) { return w.server.repos[s].generatedFrom === SLUG; }); }, hint: 'The green Use this template button appears on the Code tab once the repository is a template.', solution: 'Code tab → Use this template → Repository name: my-course → Create repository' }
             ] } },
         { id: 'i7-q-topics-blk', type: 'question', q: 'i7-q-tpl' }
       ] },
       { id: 'i7-new', title: 'Start right: create a repository with README and licence', blocks: [
-        { id: 'i7-new-t', type: 'text', html: '<p>The easiest moment to do this well is the moment you create the repository. The <b>New repository</b> page has an <b>Initialize this repository with</b> area: tick <b>Add a README file</b> and open <b>Choose a license</b>. GitHub creates both files in the first commit. Add a one-line description while you are there. (The current github.com page may label these options <b>Add README</b> and <b>Add license</b>; the practice site uses the older wording.)</p>' /* VERIFY: current New repository page labels for README and license options */ },
+        { id: 'i7-new-t', type: 'text', html: '<p>The easiest moment to do this well is the moment you create the repository. The <b>New repository</b> page has a <b>Configuration</b> area: switch on <b>Add README</b> and pick a licence in <b>Add license</b>. GitHub creates both files in the first commit. Add a one-line description while you are there.</p>' },
         { id: 'i7-new-c', type: 'callout', kind: 'info', title: 'Where the repository lives', html: 'Projects for the school belong in the <b>hamk-projects</b> organization so they stay when you leave. In the practice site, <b>aino</b> creates the repository under her own account to keep things simple.' },
         { id: 'i7-new-sim', type: 'interactive', widget: 'github', title: 'Create a repository with a README and a licence',
           caption: 'Open <b>+ → New repository</b>, or use the page that is already open.',
@@ -138,7 +139,7 @@
             tasks: [
               { id: 'new', text: 'Create a repository with a <b>README</b> and a <b>licence</b> (for example CC-BY-4.0)', check: function (w) {
                 return Object.keys(w.server.repos).some(function (s) { if (s === SLUG) return false; var t = tree(w, s); return t['README.md'] != null && t['LICENSE'] != null; });
-              }, hint: 'Give it a name, tick Add a README file, choose a license, click Create repository.', solution: 'Name: thesis-notes → tick Add a README file → Choose a license: CC-BY-4.0 → Create repository' }
+              }, hint: 'Give it a name, switch on Add README, pick a licence in Add license, click Create repository.', solution: 'Name: thesis-notes → Add README: on → Add license: CC-BY-4.0 → Create repository' }
             ] } },
         { id: 'i7-q-new-blk', type: 'question', q: 'i7-q-new' }
       ] },
@@ -167,7 +168,7 @@
         options: ['Mark the repository as a template repository', 'Email them a ZIP file', 'Make everyone an admin'], answer: 0, shuffle: false,
         explain: 'A template repository gives everyone a <b>Use this template</b> button; each copy starts fresh without your history.' },
       { id: 'i7-q-new', type: 'order', prompt: 'Put the steps of creating a well-prepared repository in order.',
-        items: ['Open the New repository page', 'Type the repository name', 'Tick Add a README file and choose a license', 'Click Create repository'],
+        items: ['Open the New repository page', 'Type the repository name', 'Switch on Add README and pick a licence', 'Click Create repository'],
         explain: 'README and licence are chosen on the same page, before you click Create.' }
     ]
   });

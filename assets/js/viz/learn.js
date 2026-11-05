@@ -16,7 +16,7 @@
 
   // ---------- timeline ----------
   TDC.widgets.register('timeline', function (host, cfg, ctx) {
-    var vs = cfg.versions || [], st = { viewed: { 0: true }, count: 1 }, cur = vs.length - 1;
+    var vs = cfg.versions || [], st = { viewed: {}, count: 0 }, cur = vs.length - 1;
     st.viewed[cur] = true; st.count = Object.keys(st.viewed).length;
     var tasks = withTasks(host, cfg, ctx, function () { return st; });
     var chaos = el('div', { class: 'tl-chaos' }, [el('h4', {}, '📁 ' + T('tl.without')), el('ul', {}, (cfg.chaos || []).map(function (f) { return el('li', {}, ['📄 ', f]); })),
@@ -33,7 +33,8 @@
       meta.innerHTML = '';
       meta.append(el('strong', {}, v.msg), el('span', { class: 'muted small' }, ' — ' + v.author + ', ' + v.when));
       doc.innerHTML = V.diffHtml(i ? vs[i - 1].text : '', v.text);
-      dots.querySelectorAll('.tl-dot').forEach(function (d, k) { d.classList.toggle('on', k === i); d.classList.toggle('seen', !!st.viewed[k]); });
+      range.setAttribute('aria-valuetext', (i + 1) + ': ' + v.msg);
+      dots.querySelectorAll('.tl-dot').forEach(function (d, k) { d.classList.toggle('on', k === i); d.classList.toggle('seen', !!st.viewed[k]); if (k === i) d.setAttribute('aria-current', 'step'); else d.removeAttribute('aria-current'); });
       tasks.refresh();
     }
     range.addEventListener('input', function () { show(+range.value); });

@@ -24,7 +24,7 @@
       current = r;
       var tgt = r.section && document.getElementById(r.section);
       if (tgt) tgt.scrollIntoView({ behavior: TDC.util.reducedMotion() ? 'auto' : 'smooth', block: 'start' });
-      return;
+      return false;
     }
     var y = window.scrollY;
     TDC.ui.closePopover();
@@ -40,9 +40,18 @@
     var m = r.name === 'topic' && meta(r.topic);
     document.title = (m ? m.num + ' ' + I.tx(m.title) + ' · ' : '') + TDC.t('app.title');
     TDC.emit('routechange', r);
+    return true;
   }
   TDC.router = {
-    start: function () { window.addEventListener('hashchange', function () { render(false); }); render(false); },
+    start: function () {
+      var main = document.getElementById('main');
+      // A new page replaced <main>: move focus there so keyboard and screen-reader users start at the new content
+      window.addEventListener('hashchange', function () { if (render(false)) main.focus({ preventScroll: true }); });
+      // The skip link must not change the hash: "#main" would be routed to the home page
+      var skip = document.querySelector('.skip-link');
+      if (skip) skip.addEventListener('click', function (e) { e.preventDefault(); main.focus(); });
+      render(false);
+    },
     refresh: function () { render(true); },
     current: function () { return current; }
   };

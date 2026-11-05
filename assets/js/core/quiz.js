@@ -82,7 +82,7 @@
       var li = el('li', { class: 'q-order-item', dataset: { id: String(i) } }, [
         el('span', { class: 'grip', 'aria-hidden': 'true' }, '⠿'), txs('span', q.items[i]),
         el('span', { class: 'q-order-btns' }, [
-          el('button', { class: 'icon-btn sm', 'aria-label': TDC.t('quiz.moveUp'), onclick: function () { if (!disabled && li.previousSibling) list.insertBefore(li, li.previousSibling); } }, '▲'),
+          el('button', { class: 'icon-btn sm', 'aria-label': TDC.t('quiz.moveUp'), onclick: function () { if (!disabled && li.previousSibling) { list.insertBefore(li, li.previousSibling); this.focus(); } } }, '▲'),   // moving li drops focus: put it back
           el('button', { class: 'icon-btn sm', 'aria-label': TDC.t('quiz.moveDown'), onclick: function () { if (!disabled && li.nextSibling) list.insertBefore(li.nextSibling, li); } }, '▼')
         ])
       ]);
@@ -156,7 +156,10 @@
       el('span', { class: 'q-badge', 'data-i18n': 'quiz.practice' }),
       el('span', { class: 'q-status' })
     ]);
-    var prompt = txs('div', q.prompt, { class: 'q-prompt' });
+    var prompt = txs('div', q.prompt, { class: 'q-prompt', id: U.uid('qp') });
+    // name the answer group (radios, checkboxes, blanks) after the question for screen readers
+    var grp = input.node.matches && input.node.matches('[role]') ? input.node : input.node.querySelector && input.node.querySelector('[role="group"], [role="radiogroup"]');
+    if (grp) grp.setAttribute('aria-labelledby', prompt.id);
     var checkBtn = el('button', { class: 'btn btn-primary btn-small', 'data-i18n': 'quiz.check', onclick: onCheck });
     var hintBtn = q.hints && q.hints.length ? el('button', { class: 'btn btn-ghost btn-small', 'data-i18n': 'quiz.hint', onclick: function () {
       if (hintIdx < q.hints.length) hintBox.appendChild(txs('p', q.hints[hintIdx++], { class: 'q-hint' }));
@@ -200,7 +203,7 @@
     }
     var prev = saved(q);
     if (prev) {
-      input.set(prev.values);
+      try { input.set(prev.values); } catch (e) { console.warn('[quiz] saved answer ignored', q.id, e); }   // e.g. from an edited progress file
       if (prev.correct) { setStatus('ok'); card.classList.add('was-correct'); showExplain(); }
     }
     I.applyStatic(card);

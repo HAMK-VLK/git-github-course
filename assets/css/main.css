@@ -62,7 +62,7 @@ code, kbd { font-family: var(--font-mono); font-size: .9em; background: var(--su
 .btn-primary { background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 88%, #fff), var(--primary)); color: var(--primary-fg); border-color: var(--primary); }
 .btn-primary:hover { background: var(--primary); filter: brightness(1.08); box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent); }
 .btn-ghost { background: transparent; }
-.btn-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn-danger { background: var(--bad); border-color: var(--bad); color: var(--on-status); }
 .btn-danger:hover { background: var(--bad); filter: brightness(1.1); box-shadow: 0 6px 18px color-mix(in srgb, var(--bad) 35%, transparent); }
 .btn-danger-ghost { background: transparent; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
 .btn-danger-ghost:hover { background: var(--bad-bg); border-color: var(--bad); }
@@ -71,11 +71,11 @@ code, kbd { font-family: var(--font-mono); font-size: .9em; background: var(--su
 .btn-col { display: flex; flex-direction: column; gap: .5rem; align-items: stretch; }
 /* Text fields: soft filled surface, clear hover, focus glow (one look for every input in the app) */
 .input, textarea.input, select, .q-input {
-  width: 100%; padding: .62rem .85rem; border: 1.5px solid color-mix(in srgb, var(--line) 80%, transparent); border-radius: 12px;
+  width: 100%; padding: .62rem .85rem; border: 1.5px solid var(--field-border); border-radius: 12px;
   background: color-mix(in srgb, var(--surface-2) 55%, var(--surface)); color: var(--fg); font: inherit; font-size: .95rem; line-height: 1.4;
   box-shadow: inset 0 1px 2px rgba(10, 20, 40, .05); transition: border-color .18s var(--ease), box-shadow .18s var(--ease), background-color .18s var(--ease);
 }
-.input::placeholder, .q-input::placeholder { color: color-mix(in srgb, var(--muted) 75%, transparent); }
+.input::placeholder, .q-input::placeholder { color: var(--muted); }
 .input:hover, select:hover, .q-input:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--line)); }
 .input:focus, select:focus, .q-input:focus {
   border-color: var(--primary); outline: none; background: var(--surface);
@@ -135,7 +135,7 @@ main { min-height: calc(100vh - var(--header-h)); outline: none; }
 .toc-wrap > * { pointer-events: auto; }
 .toc { position: sticky; top: calc(var(--header-h) + 1rem); max-height: calc(100vh - var(--header-h) - 2rem); overflow: auto; padding: 1rem; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: .9rem; }
 .toc-head { display: flex; gap: .6rem; align-items: center; margin-bottom: .6rem; }
-.toc-num { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; color: #fff; font-weight: 700; }
+.toc-num { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; color: var(--on-accent); font-weight: 700; }
 .toc-progress { margin-bottom: .6rem; }
 .toc ol { list-style: none; margin: 0; padding: 0; counter-reset: s; }
 .toc li { counter-increment: s; }
@@ -212,7 +212,7 @@ figcaption { font-size: .88rem; color: var(--muted); margin-top: .4rem; }
 dfn.term { font-style: normal; border-bottom: 1.5px dotted var(--primary); cursor: help; }
 .blk-example { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 1rem 1.1rem; }
 .ex-head { display: flex; gap: .6rem; align-items: center; }
-.ex-badge { font-size: .75rem; font-weight: 700; padding: .15rem .55rem; border-radius: 99px; background: var(--accent, var(--primary)); color: #fff; }
+.ex-badge { font-size: .75rem; font-weight: 700; padding: .15rem .55rem; border-radius: 99px; background: var(--accent, var(--primary)); color: var(--on-accent); }
 .ex-problem { margin: .5rem 0; }
 .ex-steps { margin: .6rem 0; padding-left: 1.4rem; }
 .ex-step { margin: .4rem 0; animation: rise .35s var(--ease) both; }
@@ -240,7 +240,7 @@ dfn.term { font-style: normal; border-bottom: 1.5px dotted var(--primary); curso
 .toast-host { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); z-index: 90; display: grid; gap: .5rem; pointer-events: none; }
 .toast { padding: .6rem 1rem; border-radius: 10px; background: var(--fg); color: var(--bg); font-size: .92rem; box-shadow: var(--shadow-lg); opacity: 0; transform: translateY(8px); transition: .25s var(--ease); }
 .toast.show { opacity: 1; transform: none; }
-.toast-ok { background: var(--ok); color: #fff; } .toast-bad { background: var(--bad); color: #fff; } .toast-warn { background: var(--warn); color: #fff; }
+.toast-ok { background: var(--ok); color: var(--on-status); } .toast-bad { background: var(--bad); color: var(--on-status); } .toast-warn { background: var(--warn); color: var(--on-status); }
 .popover { position: absolute; z-index: 60; max-width: min(340px, 92vw); padding: .7rem .9rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-lg); font-size: .9rem; animation: rise .15s var(--ease); }
 .tabs { display: flex; gap: .25rem; margin: .7rem 0 .9rem; padding: .25rem; border-radius: 12px; background: var(--surface-2); }
 .tab { flex: 1; padding: .45rem .6rem; border: 0; border-radius: 9px; background: none; color: var(--muted); font: 600 .88rem var(--font-body); cursor: pointer; transition: background-color .15s, color .15s; white-space: nowrap; }
@@ -265,7 +265,7 @@ dfn.term { font-style: normal; border-bottom: 1.5px dotted var(--primary); curso
 .challenge .ch-body b { font-size: 1.25em; color: var(--accent, var(--primary)); }
 .challenge .ch-state { grid-column: 1 / -1; font-size: .95rem; font-weight: 700; color: var(--ok); }
 .challenge.is-done { border-color: var(--ok); background: linear-gradient(120deg, var(--ok-bg), color-mix(in srgb, var(--ok) 12%, var(--surface))); }
-.challenge.is-done .ch-badge { background: var(--ok); color: #fff; }
+.challenge.is-done .ch-badge { background: var(--ok); color: var(--on-status); }
 .challenge.is-done::after { content: "✓"; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); font-size: 2.2rem; font-weight: 800; color: color-mix(in srgb, var(--ok) 40%, transparent); animation: pop .4s var(--ease); }
 @keyframes pop { from { transform: translateY(-50%) scale(.3); opacity: 0; } }
 @media (max-width: 520px) { .challenge { grid-template-columns: minmax(0, 1fr); } }
@@ -296,7 +296,7 @@ dfn.term:hover { background: color-mix(in srgb, var(--primary) 12%, transparent)
 .track-filter { margin: 0; flex: 0 1 26rem; }
 .level { margin: 1.6rem 0 2.2rem; }
 .level-head { display: grid; grid-template-columns: auto 1fr minmax(8rem, 12rem); gap: .3rem 1rem; align-items: center; margin-bottom: .9rem; padding-bottom: .6rem; border-bottom: 3px solid var(--accent); }
-.level-num { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 12px; background: var(--accent); color: #fff; font: 800 1.4rem var(--font-head); }
+.level-num { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 12px; background: var(--accent); color: var(--on-accent); font: 800 1.4rem var(--font-head); }
 .level-titles h2 { margin: 0; font-size: 1.35rem; }
 .level-titles p { margin: .1rem 0 0; font-size: .92rem; }
 .level-pct { display: flex; gap: .5rem; align-items: center; font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -343,5 +343,7 @@ dfn.term:hover { background: color-mix(in srgb, var(--primary) 12%, transparent)
 .ha-c.br { fill: var(--t4); } .ha-c.merge { fill: var(--surface); stroke: var(--t3); stroke-width: 4; }
 @keyframes hapulse { 0% { opacity: 0; transform: scale(.4); transform-origin: center; transform-box: fill-box; } 12%, 88% { opacity: 1; transform: none; } 100% { opacity: 1; } }
 .ha-tag rect { fill: var(--t3); } .ha-tag.br rect { fill: var(--t4); }
-.ha-tag text, .ha-cloud text { fill: #fff; font: 700 12px var(--font-mono); text-anchor: middle; }
+.ha-tag text, .ha-cloud text { fill: var(--on-accent); font: 700 12px var(--font-mono); text-anchor: middle; }
 .ha-cloud path { fill: var(--fg); opacity: .85; } .ha-cloud text { fill: var(--bg); font-size: 9px; }
+/* Visually hidden, still read by screen readers */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

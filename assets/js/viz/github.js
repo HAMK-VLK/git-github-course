@@ -15,6 +15,20 @@
   var ROLE_LABEL = { read: 'Read', triage: 'Triage', write: 'Write', maintain: 'Maintain', admin: 'Admin', none: 'No permission' };
 
   // ---------- actions (pure on the world; replayed on reload) ----------
+  // A repository got a new name (ns) or was deleted (ns null): fix every reference to the old slug, so open pull
+  // requests, forks and team pages keep working as on GitHub. keepTeams: rename keeps team access, transfer drops it.
+  function reslug(w, old, ns, keepTeams) {
+    Object.keys(w.server.repos).forEach(function (s) {
+      var x = w.server.repos[s];
+      x.pulls.forEach(function (p) { if (p.headRepo === old) p.headRepo = ns || p.headRepo; });
+      if (x.forkOf === old) x.forkOf = ns;
+      if (x.generatedFrom === old) x.generatedFrom = ns;
+    });
+    Object.keys(w.server.orgs).forEach(function (o) {
+      var teams = w.server.orgs[o].teams;
+      Object.keys(teams).forEach(function (t) { var tr = teams[t].repos; if (tr[old]) { if (ns && keepTeams) tr[ns] = tr[old]; delete tr[old]; } });
+    });
+  }
   function audit(w, org, text) { if (w.server.orgs[org]) w.server.orgs[org].audit.unshift({ by: w.me, text: text, t: w.clock }); }
   function tree(w, slug, branch) { var r = w.server.repos[slug], c = r && w.commit(r.refs[branch || r.defaultBranch]); return c ? c.tree : {}; }
   function parseOwners(text) { var o = []; String(text || '').replace(/@([\w-]+)/g, function (m, l) { if (o.indexOf(l) < 0) o.push(l); }); return o; }
@@ -26,6 +40,12 @@
     sshKeyDelete: function (w, a) { w.server.users[w.me].keys.splice(a.i, 1); },
     token: function (w, a) { w.server.users[w.me].tokens.push({ name: a.name, days: a.days, repos: a.repos, perm: a.perm }); },
     invite: function (w, a) { var o = w.server.orgs[a.org]; w.ensureUser(a.login); o.invites.push({ login: a.login, role: a.role }); audit(w, a.org, 'org.invite_member ' + a.login); },
+    decline: function (w, a) { var o = w.server.orgs[a.org]; o.invites = o.invites.filter(function (i) { return i.login !== w.me; }); },
+    // Star / Unstar, once per person (as on GitHub)
+    star: function (w, a) {
+      var r = w.server.repos[a.slug], by = r.starredBy = r.starredBy || [], i = by.indexOf(w.me);
+      if (i < 0) { by.push(w.me); r.stars++; } else { by.splice(i, 1); r.stars--; }
+    },
     join: function (w, a) {
       var o = w.server.orgs[a.org], inv = o.invites.filter(function (i) { return i.login === w.me; })[0];
       o.invites = o.invites.filter(function (i) { return i.login !== w.me; });
@@ -70,28 +90,34 @@
       if (a.gitignore) files['.gitignore'] = a.gitignore;
       if (a.license) files.LICENSE = a.license + ' License\n';
       var slug = a.owner + '/' + a.name;
-      w.makeRemote(slug, { visibility: a.visibility, description: a.description, commits: Object.keys(files).length ? [{ msg: 'Initial commit', author: w.me, files: files }] : [] });
-      if (!w.server.orgs[a.owner]) w.server.repos[slug].collaborators = {};
+      w.createRepo(slug, { visibility: a.visibility, description: a.description, commits: Object.keys(files).length ? [{ msg: 'Initial commit', author: w.me, files: files }] : [] });
+      w.server.repos[slug].generatedFrom = a.template || null;
       audit(w, a.owner, 'repo.create ' + slug);
     },
     repoSetting: function (w, a) { w.server.repos[a.slug][a.key] = a.value; },
     rename: function (w, a) {
       var r = w.server.repos[a.slug], ns = r.owner + '/' + a.name;
       delete w.server.repos[a.slug]; r.slug = ns; r.name = a.name; w.server.repos[ns] = r;
-      var o = w.server.orgs[r.owner]; if (o) Object.keys(o.teams).forEach(function (t) { var tr = o.teams[t].repos; if (tr[a.slug]) { tr[ns] = tr[a.slug]; delete tr[a.slug]; } });
+      reslug(w, a.slug, ns, true);
     },
     visibility: function (w, a) { w.server.repos[a.slug].visibility = a.value; audit(w, a.slug.split('/')[0], 'repo.access ' + a.slug + ' → ' + a.value); },
     archive: function (w, a) { w.server.repos[a.slug].archived = a.value; audit(w, a.slug.split('/')[0], (a.value ? 'repo.archived ' : 'repo.unarchived ') + a.slug); },
-    deleteRepo: function (w, a) { delete w.server.repos[a.slug]; audit(w, a.slug.split('/')[0], 'repo.destroy ' + a.slug); },
+    deleteRepo: function (w, a) { delete w.server.repos[a.slug]; reslug(w, a.slug, null); audit(w, a.slug.split('/')[0], 'repo.destroy ' + a.slug); },
     transfer: function (w, a) {
       var r = w.server.repos[a.slug], ns = a.to + '/' + r.name;
       var from = r.owner;
       delete w.server.repos[a.slug]; r.slug = ns; r.owner = a.to; w.server.repos[ns] = r;
+      reslug(w, a.slug, ns, false);   // team access does not move to the new owner
       // GitHub adds the original owner as a collaborator. shortcut: docs name no role; Admin (what they had) until verified
       if (!w.server.orgs[from] && !r.collaborators[from]) r.collaborators[from] = 'admin';
       audit(w, a.to, 'repo.transfer ' + a.slug + ' → ' + ns);
     },
-    collab: function (w, a) { var r = w.server.repos[a.slug]; if (a.role) r.collaborators[a.login] = a.role; else delete r.collaborators[a.login]; audit(w, a.slug.split('/')[0], 'repo.update_member ' + a.login + ' ' + (a.role || 'removed')); },
+    collab: function (w, a) {
+      var r = w.server.repos[a.slug], org = w.server.orgs[r.owner];
+      if (a.role) r.collaborators[a.login] = a.role; else delete r.collaborators[a.login];
+      // a non-member with direct access is an outside collaborator of the organization
+      if (a.role && org && org.owners.concat(org.members).indexOf(a.login) < 0 && org.outside.indexOf(a.login) < 0) org.outside.push(a.login);
+      audit(w, a.slug.split('/')[0], 'repo.update_member ' + a.login + ' ' + (a.role || 'removed')); },
     ruleSave: function (w, a) { var r = w.server.repos[a.slug]; if (a.i != null && r.rules[a.i]) r.rules[a.i] = a.rule; else r.rules.push(a.rule); audit(w, r.owner, 'repository_ruleset.update ' + a.rule.name); },
     ruleDelete: function (w, a) { w.server.repos[a.slug].rules.splice(a.i, 1); },
     commit: function (w, a) {
@@ -182,7 +208,8 @@
     host.append(tasks, personaBox, el('div', { class: 'gui-stage' }, [browser, overlay]), termBox, el('div', { class: 'sim-actions' }, [resetBtn]));
 
     function act(name, args) { var e = Object.assign({ a: name }, args || {}); var r = S.act(e); return r; }
-    function go(path) { if (path !== route) back.push(route); route = path; S.act({ ev: { type: 'visit', path: path } }); render(); host.scrollIntoView({ block: 'nearest' }); }
+    // leaving the upload page (after the commit, or away) forgets the chosen files, as a real page load does
+    function go(path) { if (path !== route) back.push(route); if (path.indexOf('/upload/') < 0) ui.uploadChosen = null; route = path; S.act({ ev: { type: 'visit', path: path } }); render(); host.scrollIntoView({ block: 'nearest' }); }
     function click(id) { S.act({ ev: { type: 'click', id: id } }); tasks.refresh(); }
     function link(path, kids, attrs) { return el('a', Object.assign({ href: '#', class: 'gh-link', onclick: function (e) { e.preventDefault(); go(path); } }, attrs || {}), kids); }
     function btn(label, onclick, cls, attrs) { return el('button', Object.assign({ class: 'gh-btn ' + (cls || ''), onclick: onclick }, attrs || {}), label); }
@@ -245,7 +272,9 @@
     function crumbFor(r) { var p = r.split('/').filter(Boolean); if (p[0] === 'orgs') return p[1] || ''; if (p.length >= 2 && w.server.repos[p[0] + '/' + p[1]]) return p[0] + ' / ' + p[1]; return ''; }
 
     // ---------- pages ----------
-    function render(keepScroll) {
+    // after a page change focus the new page's heading, so keyboard users land on the new content
+    function render(keepScroll) { V.keepFocus(host, function () { draw(keepScroll); }, function () { var h = page.querySelector('h1, h2, h3') || page; h.setAttribute('tabindex', '-1'); return h; }); }
+    function draw(keepScroll) {
       addr.textContent = route === '/' ? '' : route;
       renderPersona(); renderTop();
       page.innerHTML = '';
@@ -362,14 +391,14 @@
     function newRepoPage() {
       var owners = [w.me].concat(Object.keys(w.server.orgs).filter(function (o) { var g = w.server.orgs[o]; return g.owners.indexOf(w.me) >= 0 || (g.members.indexOf(w.me) >= 0 && g.settings.membersCanCreate); }));
       var templates = Object.keys(w.server.repos).filter(function (s) { return w.server.repos[s].template && role(s) !== 'none'; });
-      var tpl = el('select', { class: 'input', 'aria-label': 'Repository template' }, [el('option', { value: '' }, 'No template')].concat(templates.map(function (s) { return el('option', { value: s }, s); })));
+      var tpl = el('select', { class: 'input', 'aria-label': 'Choose a template' }, [el('option', { value: '' }, 'No template')].concat(templates.map(function (s) { return el('option', { value: s, selected: ui.newTemplate === s ? true : null }, s); })));
       var owner = el('select', { class: 'input', 'aria-label': 'Owner' }, owners.map(function (o) { return el('option', { value: o, selected: ui.newOwner === o ? true : null }, o); }));
       var name = el('input', { class: 'input', 'aria-label': 'Repository name' });
       var desc = el('input', { class: 'input', 'aria-label': 'Description' });
       var pub = el('input', { type: 'radio', name: 'vis', value: 'public' }), priv = el('input', { type: 'radio', name: 'vis', value: 'private', checked: true });
-      var readme = el('input', { type: 'checkbox' });
-      var gi = el('select', { class: 'input', 'aria-label': '.gitignore template' }, ['None', 'Python', 'Node', 'TeX', 'Java'].map(function (x) { return el('option', { value: x }, x); }));
-      var lic = el('select', { class: 'input', 'aria-label': 'License' }, ['None', 'MIT', 'Apache-2.0', 'GPL-3.0', 'CC-BY-4.0'].map(function (x) { return el('option', { value: x }, x); }));
+      var readme = el('input', { type: 'checkbox', role: 'switch' });
+      var gi = el('select', { class: 'input', 'aria-label': '.gitignore template' }, ['None', 'Python', 'Node', 'TeX', 'Java'].map(function (x) { return el('option', { value: x }, x === 'None' ? 'No .gitignore' : x); }));
+      var lic = el('select', { class: 'input', 'aria-label': 'License' }, ['None', 'MIT', 'Apache-2.0', 'GPL-3.0', 'CC-BY-4.0'].map(function (x) { return el('option', { value: x }, x === 'None' ? 'No license' : x); }));
       var hint = el('p', { class: 'small', 'aria-live': 'polite' });
       name.addEventListener('input', function () {
         var n = name.value.trim().replace(/[^\w.-]+/g, '-'), taken = w.server.repos[owner.value + '/' + n];
@@ -378,13 +407,13 @@
       });
       var GI = { Python: '__pycache__/\n*.pyc\n.venv/\n.env\n', Node: 'node_modules/\ndist/\n.env\n', TeX: '*.aux\n*.log\n*.out\n*.toc\n*.synctex.gz\n', Java: '*.class\ntarget/\n' };
       page.append(el('div', { class: 'gh-narrow' }, [el('h2', {}, T('gh.createRepoTitle')), el('p', { class: 'muted small' }, T('gh.createRepoSub')),
-        el('label', { class: 'field' }, [el('span', {}, 'Repository template'), tpl]),
+        el('label', { class: 'field' }, [el('span', {}, 'Choose a template'), tpl]),
         el('div', { class: 'gh-owner-row' }, [el('label', { class: 'field' }, [el('span', {}, 'Owner *'), owner]), el('span', { class: 'gh-slash' }, '/'), el('label', { class: 'field' }, [el('span', {}, 'Repository name *'), name])]), hint,
         el('label', { class: 'field' }, [el('span', {}, 'Description (optional)'), desc]),
         el('fieldset', { class: 'gh-fs' }, [el('legend', {}, T('gh.visibility')),
           el('label', { class: 'gui-check' }, [pub, ' 🌐 Public — ' + T('gh.publicDesc')]), el('label', { class: 'gui-check' }, [priv, ' 🔒 Private — ' + T('gh.privateDesc')])]),
-        el('fieldset', { class: 'gh-fs' }, [el('legend', {}, 'Initialize this repository with:'), el('label', { class: 'gui-check' }, [readme, ' Add a README file']),
-          el('label', { class: 'field' }, [el('span', {}, 'Add .gitignore'), gi]), el('label', { class: 'field' }, [el('span', {}, 'Choose a license'), lic])]),
+        el('fieldset', { class: 'gh-fs' }, [el('legend', {}, 'Configuration'), el('label', { class: 'gui-check' }, [readme, ' Add README']),
+          el('label', { class: 'field' }, [el('span', {}, 'Add .gitignore'), gi]), el('label', { class: 'field' }, [el('span', {}, 'Add license'), lic])]),
         btn(T('gh.createRepo'), function () {
           var n = name.value.trim().replace(/[^\w.-]+/g, '-');
           if (!n) { denied(T('gh.needName')); return; }
@@ -392,6 +421,7 @@
           var o = w.server.orgs[owner.value];
           if (o && pub.checked && !o.settings.membersCanCreatePublic && o.owners.indexOf(w.me) < 0) { denied(T('gh.noPublicCreate')); return; }
           act('repoCreate', { owner: owner.value, name: n, description: desc.value.trim(), visibility: pub.checked ? 'public' : 'private', template: tpl.value || null, readme: readme.checked, gitignore: GI[gi.value] || null, license: lic.value !== 'None' ? lic.value : null });
+          ui.newTemplate = null;
           go('/' + owner.value + '/' + n);
         }, 'gh-green')]));
     }
@@ -425,7 +455,7 @@
         el('h2', {}, T('gh.invitedTo', { org: o.displayName })), el('p', { class: 'muted' }, T('gh.invitedRole', { role: inv.role === 'owner' ? 'owner' : 'member' })),
         el('p', { class: 'small' }, T('gh.joinNote')),
         el('div', { class: 'btn-row gh-center' }, [btn(T('gh.join', { org: o.displayName }), function () { act('join', { org: org }); go('/orgs/' + org); TDC.ui.toast(T('gh.joined'), 'ok'); }, 'gh-green'),
-          btn(T('gh.decline'), function () { o.invites = o.invites.filter(function (i) { return i.login !== w.me; }); render(); })])]));
+          btn(T('gh.decline'), function () { act('decline', { org: org }); render(); })])]));
     }
     function orgPeople(org, o, owner) {
       var sub = ui.peopleTab || 'members';
@@ -441,7 +471,7 @@
           owner && x[0] !== w.me ? btn('⋯', function (e) {
             TDC.ui.popover(e.currentTarget, el('div', { class: 'gui-menu' }, [
               o.owners.indexOf(x[0]) < 0 ? el('button', { class: 'gui-menu-item', onclick: function () { TDC.ui.closePopover(); act('removeMember', { org: org, login: x[0], outside: true }); render(); TDC.ui.toast(T('gh.convertedOutside', { u: x[0] }), 'ok'); } }, T('gh.convertOutside')) : null,
-              el('button', { class: 'gui-menu-item gh-danger-text', onclick: function () { TDC.ui.closePopover(); confirmDialog(T('gh.removeTitle', { u: x[0] }), T('gh.removeBody', { u: x[0], org: org }), T('gh.removeMember'), function () { act('removeMember', { org: org, login: x[0] }); render(); }); } }, T('gh.removeMember'))
+              el('button', { class: 'gui-menu-item gh-danger-text', onclick: function () { TDC.ui.closePopover(); confirmDialog(T('gh.removeTitle', { u: x[0] }), T('gh.removeBody', { u: U.escapeHtml(x[0]), org: U.escapeHtml(org) }), T('gh.removeMember'), function () { act('removeMember', { org: org, login: x[0] }); render(); }); } }, T('gh.removeMember'))
             ]));
           }, 'gh-mini-btn', { 'aria-label': T('gh.memberActions', { u: x[0] }) }) : null]);
       })));
@@ -449,7 +479,7 @@
         var access = Object.keys(w.server.repos).filter(function (s) { return s.indexOf(org + '/') === 0 && w.server.repos[s].collaborators[l]; });
         return el('li', { class: 'gh-row' }, [avatar(l), el('div', {}, [el('strong', {}, l), el('div', { class: 'muted small' }, access.length ? access.map(function (s) { return s.split('/')[1] + ' (' + w.server.repos[s].collaborators[l] + ')'; }).join(', ') : T('gh.noAccessLeft'))]),
           owner ? btn(T('gh.removeAccess'), function () {
-            confirmDialog(T('gh.removeAccess') + ': ' + l, T('gh.removeAccessBody', { u: l, org: org }), T('gh.removeAccess'), function () { act('removeMember', { org: org, login: l }); render(); });
+            confirmDialog(T('gh.removeAccess') + ': ' + l, T('gh.removeAccessBody', { u: U.escapeHtml(l), org: U.escapeHtml(org) }), T('gh.removeAccess'), function () { act('removeMember', { org: org, login: l }); render(); });
           }, 'gh-danger', { 'data-id': 'remove-access-' + l }) : null]);
       })) : el('p', { class: 'muted gh-pad' }, T('gh.noOutside')));
       else box.append(o.invites.length ? el('ul', { class: 'gh-rows' }, o.invites.map(function (i) { return el('li', { class: 'gh-row' }, [avatar(i.login), el('strong', {}, i.login), el('span', { class: 'muted small' }, T('gh.invitedAs', { role: i.role }))]); })) : el('p', { class: 'muted gh-pad' }, T('gh.noInvites')));
@@ -462,6 +492,7 @@
         el('p', { class: 'muted small' }, T('gh.roleHelp'))]), [{ label: T('common.cancel') }, { label: T('gh.sendInvite'), primary: true, run: function () {
           var l = login.value.trim().replace(/^@/, ''), o = w.server.orgs[org];
           if (!l) return false;
+          if (!/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/i.test(l) && !/^\S+@\S+\.\S+$/.test(l)) { denied(T('gh.badUsername')); return false; }   // a GitHub username or an e-mail address
           if (o.owners.concat(o.members).indexOf(l) >= 0) { denied(T('gh.alreadyMember', { u: l })); return false; }
           if (o.invites.some(function (i) { return i.login === l; })) { denied(T('gh.alreadyInvited', { u: l })); return false; }
           act('invite', { org: org, login: l, role: r.value }); ui.peopleTab = 'pending'; render();
@@ -547,18 +578,23 @@
     function repoPage(slug, tab, rest) {
       var r = w.server.repos[slug], rl = role(slug);
       if (rl === 'none') return notFound();
+      // branch names may contain "/" (feature/login): take the longest leading part of the path that is a branch
+      if (/^(tree|blob|edit|new|upload|commits)$/.test(tab) && rest.length > 1 && r.refs[rest[0]] == null) {
+        for (var k = rest.length; k > 1; k--) { var bn = rest.slice(0, k).join('/'); if (r.refs[bn] != null) { rest = [bn].concat(rest.slice(k)); break; } }
+      }
       if (tab === 'settings' && w.roleRank(rl) < w.roleRank('maintain')) return notFound();   // GitHub answers 404, not "forbidden"
       var openIssues = r.issues.filter(function (i) { return i.state === 'open'; }).length, openPulls = r.pulls.filter(function (p) { return p.state === 'open'; }).length;
       var tabsDef = [['code', '<> Code'], ['issues', '◎ Issues', openIssues], ['pulls', '⇄ Pull requests', openPulls], ['actions', '▷ Actions'], ['projects', '▦ Projects'], ['security', '🛡 Security'], ['insights', '📈 Insights']];
       if (w.roleRank(rl) >= w.roleRank('maintain')) tabsDef.push(['settings', '⚙ Settings']);
       var tabOf = { code: 'code', tree: 'code', blob: 'code', edit: 'code', new: 'code', upload: 'code', commits: 'code', commit: 'code', branches: 'code', releases: 'code', issues: 'issues', pulls: 'pulls', compare: 'pulls', pull: 'pulls', actions: 'actions', settings: 'settings', projects: 'projects', security: 'security', insights: 'insights' }[tab];
       page.append(el('div', { class: 'gh-repo-head' }, [
-        el('div', { class: 'gh-repo-title' }, [el('span', { 'aria-hidden': 'true' }, '▣ '), link('/orgs/' + r.owner, r.owner, { class: 'gh-link' }), ' / ', link('/' + slug, el('strong', {}, r.name)), ' ', el('span', { class: 'gh-label' }, visLabel(r)),
-          r.archived ? el('span', { class: 'gh-label warn' }, 'Public archive'.replace('Public', visLabel(r))) : null, r.forkOf ? el('div', { class: 'muted small' }, ['forked from ', link('/' + r.forkOf, r.forkOf)]) : null]),
+        el('div', { class: 'gh-repo-title' }, [el('span', { 'aria-hidden': 'true' }, '▣ '), link('/orgs/' + r.owner, r.owner, { class: 'gh-link' }), ' / ', link('/' + slug, el('strong', {}, r.name)), ' ', el('span', { class: 'gh-label' }, visLabel(r) + (r.template ? ' template' : '')),
+          r.archived ? el('span', { class: 'gh-label warn' }, 'Public archive'.replace('Public', visLabel(r))) : null, r.forkOf ? el('div', { class: 'muted small' }, ['forked from ', link('/' + r.forkOf, r.forkOf)]) : null,
+          r.generatedFrom ? el('div', { class: 'muted small' }, ['generated from ', w.server.repos[r.generatedFrom] ? link('/' + r.generatedFrom, r.generatedFrom) : r.generatedFrom]) : null]),
         el('div', { class: 'gh-repo-actions' }, [
           btn(['👁 Watch ', counter(1)], function () { click('watch'); TDC.ui.toast(T('gh.watching')); }, 'gh-sm', { 'data-id': 'watch' }),
           btn(['⑂ Fork ', counter(Object.keys(w.server.repos).filter(function (s) { return w.server.repos[s].forkOf === slug; }).length)], function () { click('fork'); forkDialog(slug); }, 'gh-sm', { 'data-id': 'fork' }),
-          btn(['☆ Star ', counter(r.stars)], function () { click('star'); r.stars++; render(); }, 'gh-sm', { 'data-id': 'star' })
+          btn([(r.starredBy || []).indexOf(w.me) >= 0 ? '★ Starred ' : '☆ Star ', counter(r.stars)], function () { click('star'); act('star', { slug: slug }); render(); }, 'gh-sm', { 'data-id': 'star' })
         ])
       ]), el('nav', { class: 'gh-tabs gh-repo-tabs' }, tabsDef.map(function (t) {
         return link('/' + slug + (t[0] === 'code' ? '' : '/' + t[0]), [t[1], t[2] ? counter(t[2]) : null], { class: 'gh-tab' + (tabOf === t[0] ? ' on' : ''), onclick: function (e) { e.preventDefault(); click('tab-' + t[0]); go('/' + slug + (t[0] === 'code' ? '' : '/' + t[0])); } });
@@ -631,11 +667,13 @@
           el('button', { class: 'gui-menu-item', onclick: function () { TDC.ui.closePopover(); click('upload-files'); go('/' + slug + '/upload/' + branch + (dir ? '/' + dir : '')); } }, '⬆ Upload files')
         ]));
       }, 'gh-sm', { 'data-id': 'add-file' });
+      // Template repositories get GitHub's green button: it opens New repository with the template chosen
+      var useTpl = r.template ? btn('Use this template', function () { click('use-template'); ui.newTemplate = slug; go('/new'); }, 'gh-green gh-sm', { 'data-id': 'use-template' }) : null;
       var codeBtn = btn('<> Code ▾', function (e) { cloneMenu(e.currentTarget, slug); }, 'gh-green gh-sm', { 'data-id': 'code-button' });
       var bar = el('div', { class: 'gh-code-bar' }, [branchSelect(slug, r, branch, function (b) { ui.branch = b; ui.branchRepo = slug; go('/' + slug + '/tree/' + b); }),
         link('/' + slug + '/branches', ['⑂ ', el('b', {}, String(Object.keys(r.refs).length)), ' Branches'], { class: 'gh-link small', 'data-id': 'branches-link' }),
         link('/' + slug + '/releases', ['🏷 ', el('b', {}, String(Object.keys(r.tags).length)), ' Tags'], { class: 'gh-link small' }),
-        el('span', { class: 'gh-grow' }), el('span', { class: 'gh-search sm', 'aria-hidden': 'true' }, 'Go to file'), addMenu, codeBtn]);
+        el('span', { class: 'gh-grow' }), el('span', { class: 'gh-search sm', 'aria-hidden': 'true' }, 'Go to file'), addMenu, useTpl, codeBtn]);
       // "This branch is N commits ahead of …": a fork compares with the original repository, as on GitHub
       var up = r.forkOf && w.server.repos[r.forkOf], baseSlug = up ? r.forkOf : slug, baseRepo = up || r, baseB = baseRepo.defaultBranch;
       var ahead = (up || branch !== r.defaultBranch) && baseRepo.refs[baseB] && !baseRepo.pulls.some(function (p) { return p.state === 'open' && p.head === branch && p.headRepo === slug; })
@@ -794,8 +832,6 @@
       page.append(el('div', { class: 'gh-crumbs' }, [link('/' + slug, r.name), ' / ' + (dir || '')]), drop,
         chosen.length ? el('ul', { class: 'gh-rows gh-box' }, chosen.map(function (f) { return el('li', { class: 'gh-row' }, ['📄 ' + f, btn('✕', function () { ui.uploadChosen = chosen.filter(function (x) { return x !== f; }); render(); }, 'gh-mini-btn', { 'aria-label': T('gh.remove') + ' ' + f })]); })) : null,
         btn('Commit changes…', function () { var f = commitBox(slug, r, branch, getChanges, 'Add files via upload', null, '/' + slug + (dir ? '/tree/' + branch + '/' + dir : '')); var ok = getChanges(); if (ok) { f(); } }, 'gh-green', { 'data-id': 'upload-commit' }));
-      // after a successful commit, forget the chosen files
-      if (w.events.length && w.events[w.events.length - 1].type === 'commit') ui.uploadChosen = [];
     }
     function commitsPage(slug, r, rest) {
       var branch = rest[0] || r.defaultBranch, sha = r.refs[branch], path = rest.slice(1).join('/');
@@ -1047,7 +1083,8 @@
         page.append(el('h3', {}, [res.ok ? '✅ ' : '❌ ', r.ci.name, ' · ', c.msg.split('\n')[0]]),
           el('div', { class: 'gh-box' }, [el('div', { class: 'gh-box-h' }, [el('strong', {}, 'build'), el('span', { class: res.ok ? 'ok' : 'bad' }, res.ok ? 'succeeded' : 'failed')]),
             el('pre', { class: 'gh-log' }, res.log.join('\n'))]));
-        S.act({ ev: { type: 'visit-run', ok: res.ok } });
+        // log once per run, not on every redraw of this page
+        if (!w.did('visit-run', function (e) { return e.sha === c.sha; })) S.act({ ev: { type: 'visit-run', ok: res.ok, sha: c.sha } });
         return;
       }
       var runs = [];
@@ -1083,11 +1120,15 @@
     function aboutDialog(slug, r) {
       click('about-gear');
       var desc = el('input', { class: 'input', value: r.description || '', 'aria-label': 'Description' });
-      var topics = el('input', { class: 'input', value: r.topics.join(' '), 'aria-label': 'Topics' });
+      var topics = el('input', { class: 'input', value: r.topics.join(' '), 'aria-label': 'Topics' }), topicErr = el('p', { class: 'small bad', 'aria-live': 'polite' });
       V.dialog(overlay, 'Edit repository details', el('div', { class: 'gui-form' }, [el('label', { class: 'field' }, [el('span', {}, 'Description'), desc]),
-        el('label', { class: 'field' }, [el('span', {}, 'Topics (separate with spaces)'), topics])]), [{ label: T('common.cancel') }, { label: 'Save changes', primary: true, run: function () {
+        el('label', { class: 'field' }, [el('span', {}, 'Topics (separate with spaces)'), topics]), topicErr]), [{ label: T('common.cancel') }, { label: 'Save changes', primary: true, run: function () {
+        // GitHub's rule (docs, FACTS.md): lowercase letters, digits, hyphens, max 50 characters, max 20 topics
+        var list = topics.value.trim().toLowerCase().split(/[\s,]+/).filter(Boolean);
+        var bad = list.filter(function (x) { return !/^[a-z0-9][a-z0-9-]{0,49}$/.test(x); });
+        if (bad.length || list.length > 20) { topicErr.textContent = T('gh.topicRule', { x: bad.join(' ') || list.length + ' topics' }); return false; }
         act('repoSetting', { slug: slug, key: 'description', value: desc.value.trim() });
-        act('repoSetting', { slug: slug, key: 'topics', value: topics.value.trim().toLowerCase().split(/[\s,]+/).filter(Boolean) });
+        act('repoSetting', { slug: slug, key: 'topics', value: list });
         render();
       } }]);
     }
@@ -1167,7 +1208,6 @@
           var l = login.value.trim().replace(/^@/, ''); if (!l) return false;
           if (!w.server.users[l]) { denied(T('gh.noSuchUser', { u: l })); return false; }
           act('collab', { slug: slug, login: l, role: rsel.value });
-          if (org && org.owners.concat(org.members).indexOf(l) < 0 && org.outside.indexOf(l) < 0) org.outside.push(l);
           render();
         } }]);
     }
@@ -1229,9 +1269,9 @@
       body.append(form);
     }
     function forkDialog(slug) {
-      if (!can(slug, 'fork')) { denied(T('gh.cannotFork'), 'fork', slug); return; }
       var src = w.server.repos[slug], o = w.server.orgs[src.owner];
       if (src.visibility !== 'public' && o && !o.settings.membersCanFork) { denied(T('gh.forkDisabled'), 'fork', slug); return; }
+      if (!can(slug, 'fork')) { denied(T('gh.cannotFork'), 'fork', slug); return; }
       var ns = w.me + '/' + src.name;
       if (w.server.repos[ns]) { go('/' + ns); return; }
       V.dialog(overlay, 'Create a new fork', el('div', { class: 'gui-form' }, [el('p', { class: 'small' }, T('gh.forkHelp')), el('p', {}, el('b', {}, 'Owner: ' + w.me + ' / ' + src.name))]),

@@ -31,7 +31,7 @@ TDC.i18n.add('en', {
 
   'gh.createRepoTitle': 'Create a new repository', 'gh.createRepoSub': 'A repository contains all project files, including the revision history.',
   'gh.visibility': 'Visibility', 'gh.publicDesc': 'anyone on the internet can see this repository. You choose who can commit.', 'gh.privateDesc': 'you choose who can see and commit to this repository.',
-  'gh.createRepo': 'Create repository', 'gh.nameTaken': 'The repository {n} already exists on this account.', 'gh.nameOk': '{n} is available.', 'gh.nameWillBe': 'Your new repository will be created as {n}.',
+  'gh.topicRule': 'Topics use lowercase letters, numbers and hyphens, start with a letter or number, are at most 50 characters long, and a repository has at most 20. Not accepted: {x}', 'gh.createRepo': 'Create repository', 'gh.nameTaken': 'The repository {n} already exists on this account.', 'gh.nameOk': '{n} is available.', 'gh.nameWillBe': 'Your new repository will be created as {n}.',
   'gh.noPublicCreate': 'Members of this organization may not create public repositories (organization setting).',
 
   'gh.youAreOwner': 'you are an owner', 'gh.youAreMember': 'you are a member', 'gh.yourRole': 'Your role',

@@ -31,7 +31,7 @@
   };
   B.callout = function (b) {
     var icons = { key: '★', tip: '💡', warn: '⚠', info: 'ℹ', school: '🏫', staff: '👩‍🏫' };
-    return el('aside', { class: 'blk-callout callout-' + (b.kind || 'info') }, [
+    return el('div', { role: 'note', class: 'blk-callout callout-' + (b.kind || 'info') }, [
       el('span', { class: 'callout-icon', 'aria-hidden': 'true' }, icons[b.kind] || 'ℹ'),
       el('div', {}, [b.title ? txs('strong', b.title, { class: 'callout-title' }) : null, txs('div', b.html)])
     ]);

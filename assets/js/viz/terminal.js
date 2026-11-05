@@ -128,7 +128,8 @@
       if (e.key === 'Enter') { e.preventDefault(); var v = input.value; input.value = ''; if (v.trim()) hist.push(v); hi = hist.length; run(v); }
       else if (e.key === 'ArrowUp') { if (hi > 0) { hi--; input.value = hist[hi]; } e.preventDefault(); }
       else if (e.key === 'ArrowDown') { if (hi < hist.length) { hi++; input.value = hist[hi] || ''; } e.preventDefault(); }
-      else if (e.key === 'Tab') { e.preventDefault(); complete(); }
+      // Tab completes only when something is typed: with an empty line Tab / Shift+Tab leave the terminal (no keyboard trap)
+      else if (e.key === 'Tab' && !e.shiftKey && input.value.trim()) { e.preventDefault(); complete(); }
       else if (e.key === 'l' && e.ctrlKey) { e.preventDefault(); outBox.innerHTML = ''; }
     });
     function complete() {

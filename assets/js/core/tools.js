@@ -77,13 +77,18 @@
   function importFile(input) {
     var f = input.files && input.files[0]; input.value = '';
     if (!f) return;
+    if (f.size > 2e6) { TDC.ui.toast(TDC.t('data.badFile'), 'warn', 6000); return; }   // do not read huge files into memory
     var rd = new FileReader();   // FileReader, not fetch: works from file:// too
     rd.onload = function () {
       var clean = S().parseImport(String(rd.result));
       if (!clean) { TDC.ui.toast(TDC.t('data.badFile'), 'warn', 6000); return; }
       TDC.ui.modal({ title: TDC.t('data.importTitle'), body: TDC.t('data.importBody'), actions: [
         { label: TDC.t('common.cancel') },
-        { label: TDC.t('data.importConfirm'), primary: true, run: function () { S().importDoc(clean); TDC.ui.toast(TDC.t('data.imported'), 'ok'); TDC.ui.closeDrawer(); TDC.router.refresh(); } }
+        { label: TDC.t('data.importConfirm'), primary: true, run: function () {
+          S().importDoc(clean);
+          if (S().saveNow() !== false) TDC.ui.toast(TDC.t('data.imported'), 'ok');   // saveNow warns itself when storage is full
+          TDC.ui.closeDrawer(); TDC.router.refresh();
+        } }
       ] });
     };
     rd.onerror = function () { TDC.ui.toast(TDC.t('data.badFile'), 'warn', 6000); };

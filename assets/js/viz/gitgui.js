@@ -7,6 +7,7 @@
   'use strict';
   var U = TDC.util, el = U.el, V = TDC.viz, T = TDC.t;
   var KIND = { new: ['+', 'A', 'U'], mod: ['•', 'M', 'M'], del: ['−', 'D', 'D'], conflict: ['!', 'C', '!'] };
+  var KIND_SR = { new: 'new file', mod: 'modified', del: 'deleted', conflict: 'conflict' };   // read instead of the symbol
 
   function apply(w, e) {
     if (e.c != null) return w.exec(e.c);
@@ -14,7 +15,7 @@
     else if (e.rm) w.removeFile(e.rm);
     else if (e.s) w.signedIn = true;
     else if (e.cd) { w.mkdirp(e.cd); w.cwd = w.abs(e.cd); }
-    else if (e.pub) { w.makeRemote(e.pub.slug, { commits: [], visibility: e.pub.vis, description: e.pub.desc || '' }); w.event({ type: 'publish', slug: e.pub.slug }); }
+    else if (e.pub) { w.createRepo(e.pub.slug, { commits: [], visibility: e.pub.vis, description: e.pub.desc || '' }); w.event({ type: 'publish', slug: e.pub.slug }); }
     if (e.ev) w.event(e.ev);
     return null;
   }
@@ -49,16 +50,18 @@
     host.append(tasks, el('div', { class: 'gui-stage' }, [app, overlay]), below, el('div', { class: 'sim-actions' }, [resetBtn]), panelBox);
 
     function repo() { return w.repo(); }
-    function run(cmd, quiet) {
+    // done(res): runs after success, also when the command first had to wait for the sign-in dialog
+    function run(cmd, quiet, done) {
       var res = S.act({ c: cmd });
-      if (res && res.prompt === 'gcm') { signIn(cmd); return res; }
+      if (res && res.prompt === 'gcm') { signIn(cmd, done); return res; }
+      if (res && !res.code && done) done(res);
       if (res && res.code && !quiet) V.dialog(overlay, T('gui.error'), el('pre', { class: 'gui-err' }, outText(res)));
       return res;
     }
-    function signIn(retry) {
+    function signIn(retry, done) {
       V.dialog(overlay, T('gui.signInTitle'), el('p', {}, T('gui.signInBody')), [
         { label: T('common.cancel') },
-        { label: T('gcm.browser'), primary: true, run: function () { S.act({ s: 1 }); run(retry); render(); } }
+        { label: T('gcm.browser'), primary: true, run: function () { S.act({ s: 1 }); var r2 = run(retry); if (done && r2 && !r2.code && !r2.prompt) done(r2); render(); } }
       ]);
     }
     function save(path, text) { S.act({ e: path, t: text }); }
@@ -112,8 +115,10 @@
         el('label', { class: 'field' }, [el('span', {}, T('gui.owner')), owner]),
         el('label', { class: 'gui-check' }, [priv, ' ', T('gui.keepPrivate')])
       ]), [{ label: T('common.cancel') }, { label: T('gui.publishRepo'), primary: true, run: function () {
-        var slug = owner.value + '/' + name.value.trim().replace(/\s+/g, '-');
+        var n = name.value.trim().replace(/\s+/g, '-'), slug = owner.value + '/' + n, o = w.server.orgs[owner.value];
+        if (!n) { TDC.ui.toast(T('gh.needName'), 'warn'); return false; }
         if (w.server.repos[slug]) { TDC.ui.toast(T('gui.exists'), 'warn'); return false; }
+        if (o && !priv.checked && !o.settings.membersCanCreatePublic && o.owners.indexOf(w.me) < 0) { TDC.ui.toast(T('gh.noPublicCreate'), 'warn'); return false; }
         S.act({ pub: { slug: slug, vis: priv.checked ? 'private' : 'public' } });
         run('git remote add origin ' + w.urlOf(slug)); run('git push -u origin ' + (r.HEAD.branch || 'main')); after();
       } }]);
@@ -130,8 +135,8 @@
         [{ label: T('common.cancel') }, { label: T('gui.clone'), primary: true, run: function () {
           var u = url.value.trim(); if (!u) return false;
           var slug = w.slugFromUrl(u), dir = '~/' + (slug ? slug.split('/')[1] : 'repo');
-          S.act({ cd: '~' }); var res = run('git clone ' + u + ' ' + dir);
-          if (res && !res.code && !res.prompt) { S.act({ cd: dir }); ui.open = null; }
+          S.act({ cd: '~' });
+          run('git clone ' + u + ' ' + dir, false, function () { S.act({ cd: dir }); ui.open = null; });
           after();
         } }]);
     }
@@ -195,7 +200,10 @@
         side.append(el('div', { class: 'gd-list-head' }, [all, ' ', T('gui.changedFiles', { n: changes.length })]));
         side.append(el('ul', { class: 'gd-list' }, changes.map(function (c) {
           var cb = el('input', { type: 'checkbox', checked: !!ui.checked[c.p], 'aria-label': c.p, onchange: function () { ui.checked[c.p] = cb.checked; after(); } });
-          return el('li', { class: 'gd-file' + (ui.sel === c.p ? ' on' : ''), onclick: function (e) { if (e.target !== cb) { ui.sel = c.p; after(); } } }, [cb, el('span', { class: 'gd-name' }, c.p), el('span', { class: 'gd-kind k-' + c.kind, title: c.kind }, KIND[c.kind][0])]);
+          // the name is a real button so keyboard users can open the file's diff (the row stays clickable for the mouse)
+          return el('li', { class: 'gd-file' + (ui.sel === c.p ? ' on' : ''), onclick: function (e) { if (e.target !== cb) { ui.sel = c.p; after(); } } }, [cb,
+            el('button', { type: 'button', class: 'gd-name gd-pick', 'aria-current': ui.sel === c.p ? 'true' : null }, c.p),
+            el('span', { class: 'gd-kind k-' + c.kind, title: c.kind, 'aria-hidden': 'true' }, KIND[c.kind][0]), el('span', { class: 'sr-only' }, KIND_SR[c.kind])]);
         })));
         var sum = el('input', { class: 'input gd-summary', placeholder: T('gui.summaryPh'), value: ui.msg, 'aria-label': T('gui.summary'), oninput: function () { ui.msg = sum.value; commitBtn.disabled = !canCommit(); } });
         var desc = el('textarea', { class: 'input gd-desc', placeholder: T('gui.descPh'), rows: 2, 'aria-label': T('gui.description'), oninput: function () { ui.desc = desc.value; } });
@@ -217,7 +225,7 @@
       } else {
         var cs = w.commitsOn(r).slice(0, 30);
         side.append(el('ul', { class: 'gd-list gd-hist' }, cs.map(function (c) {
-          return el('li', { class: 'gd-file' + (ui.histSel === c.sha ? ' on' : ''), onclick: function () { ui.histSel = c.sha; after(); } }, [el('span', { class: 'gd-name' }, [el('b', {}, c.msg.split('\n')[0]), el('small', { class: 'muted' }, c.author + ' · ' + w.short(c.sha))])]);
+          return el('li', { class: 'gd-file' + (ui.histSel === c.sha ? ' on' : ''), onclick: function () { ui.histSel = c.sha; after(); } }, [el('button', { type: 'button', class: 'gd-name gd-pick', 'aria-current': ui.histSel === c.sha ? 'true' : null }, [el('b', {}, c.msg.split('\n')[0]), el('small', { class: 'muted' }, c.author + ' · ' + w.short(c.sha))])]);
         })));
         var hc = w.commit(ui.histSel) || cs[0];
         if (hc) {
@@ -244,7 +252,8 @@
       ta.addEventListener('input', function () { ui.buf = ta.value; ui.dirty = true; saveBtn.disabled = false; });
       ta.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); doSave(); } });
       var nf = el('input', { class: 'input gui-input', placeholder: T('gui.newFilePh'), 'aria-label': T('gui.newFile') });
-      function addFile() { var n = nf.value.trim(); if (!n) return; save(r.dir + '/' + n, ''); ui.open = n; ui.buf = null; ui.dirty = false; after(); }
+      // an existing name just opens that file: creating it again would empty it
+      function addFile() { var n = nf.value.trim(); if (!n) return; if (w.readFile(r.dir + '/' + n) == null) save(r.dir + '/' + n, ''); ui.open = n; ui.buf = null; ui.dirty = false; after(); }
       nf.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addFile(); } });
       below.append(el('div', { class: 'ep' }, [
         el('div', { class: 'ep-head' }, [el('strong', {}, '📝 ' + T('gui.editorPane')), el('span', { class: 'muted small' }, T('gui.editorPaneSub', { dir: w.pretty(r.dir) }))]),
@@ -273,7 +282,10 @@
       var side = el('div', { class: 'vs-side' });
       if (ui.side === 'explorer') {
         var nf = el('input', { class: 'input gui-input', placeholder: T('gui.newFilePh'), 'aria-label': T('gui.newFile') });
-        nf.addEventListener('keydown', function (e) { if (e.key === 'Enter' && nf.value.trim()) { e.preventDefault(); save(folder + '/' + nf.value.trim(), ''); ui.open = nf.value.trim(); ui.buf = null; after(); } });
+        nf.addEventListener('keydown', function (e) { if (e.key === 'Enter' && nf.value.trim()) {
+          e.preventDefault();
+          if (w.readFile(folder + '/' + nf.value.trim()) != null) { TDC.ui.toast(T('gui.vsExists', { n: nf.value.trim() }), 'warn'); return; }   // VS Code refuses, it never empties a file
+          save(folder + '/' + nf.value.trim(), ''); ui.open = nf.value.trim(); ui.buf = null; after(); } });
         var files = Object.keys(w.fs).filter(function (p) { return p.indexOf(folder + '/') === 0; }).map(function (p) { return p.slice(folder.length + 1); }).sort();
         var ch = {}; changes.forEach(function (c) { ch[c.p] = c; });
         side.append(el('div', { class: 'vs-side-h' }, T('gui.vsExplorer').toUpperCase()), el('div', { class: 'vs-folder' }, '⌄ ' + folder.split('/').pop().toUpperCase()),
@@ -368,7 +380,8 @@
       if (ui.refocus && ta) { ui.refocus = false; ta.focus(); }   // keep Ctrl+S working after an Accept link, as in VS Code
     }
 
-    function render() {
+    function render() { V.keepFocus(host, draw); }
+    function draw() {
       var r = repo();
       if (skin === 'desktop') { renderDesktop(r); renderEditorPane(r); } else renderVsCode(r);
       if (panels.graph) TDC.gitgraph.draw(panels.graph, w, r);

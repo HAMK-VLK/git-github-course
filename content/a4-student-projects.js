@@ -1,8 +1,7 @@
 /* a4 = 3.4 Submitting student projects to the school (both tracks). Four simulators:
  * 1 github (teacher): repository from template + Write for the student; 2 terminal (student): work, tag, push;
  * 3 github (student): transfer a personal repo into the org; 4 github + terminal: archive, then a push is refused.
- * Simulator notes: "Repository template" is a drop-down on the New repository page (real GitHub also has a
- * "Use this template" button on the template's page); tags are pushed from the terminal here. */
+ * Simulator notes: "Use this template" on the template's page, or "Choose a template" on the New repository page; tags are pushed from the terminal here. */
 (function () {
   var ORG = 'hamk-projects';
   var CFG = { 'user.name': 'Aino Student', 'user.email': 'aino@example.com', 'init.defaultBranch': 'main' };
@@ -60,14 +59,14 @@
       { id: 'a4-create', title: 'Create the repository from the template', blocks: [
         { id: 'a4-t2', type: 'text', html: '<p>A <dfn data-term="templaterepo">template repository</dfn> holds the starting files every thesis needs: a README, chapter folders, a <code>.gitignore</code>. Creating from the template gives the new repository those files as its first commit, and none of the template\'s history.</p><p>Use a name the school can search: <code>thesis-2026-&lt;lastname&gt;</code>. Keep it <b>private</b> while the work is in progress.</p>' },
         { id: 'a4-gh1', type: 'interactive', widget: 'github', title: 'Create a thesis repository and give the student Write access',
-          caption: 'You are the supervisor (<b>teacher</b>). Use the <b>+</b> menu, pick the template as the starting point, then open the new repository\'s <b>Settings → Collaborators and teams</b>.',
+          caption: 'You are the supervisor (<b>teacher</b>). Press <b>Use this template</b> on the template (it is already open), then open the new repository\'s <b>Settings → Collaborators and teams</b>.',
           config: { start: '/hamk-projects/thesis-template', personas: ['teacher', 'aino'],
             world: { me: 'teacher', myName: 'Tiina Teacher', users: USERS, orgs: (function () { var o = {}; o[ORG] = org(); return o; })(),
               remotes: (function () { var r = {}; r[ORG + '/thesis-template'] = TEMPLATE; return r; })() },
             tasks: [
               { id: 'create', text: 'Create <code>hamk-projects/thesis-2026-virtanen</code> (any name starting <code>thesis-2026-</code>) <b>from the template</b>, <b>private</b>',
-                hint: 'Plus menu → New repository. Choose the template first, then owner hamk-projects and the name.',
-                solution: '+ menu → New repository → Repository template: hamk-projects/thesis-template; Owner hamk-projects; name thesis-2026-virtanen; Private → Create repository',
+                hint: 'Open the template and press Use this template (or + menu → New repository → Choose a template). Then owner hamk-projects and the name.',
+                solution: 'Use this template (or + menu → New repository → Choose a template: hamk-projects/thesis-template); Owner hamk-projects; name thesis-2026-virtanen; Private → Create repository',
                 check: function (w) { return slugs(w, /^hamk-projects\/thesis-2026-[\w-]+$/).some(function (s) { var r = w.server.repos[s]; return r.visibility === 'private' && !!(w.commit(r.refs[r.defaultBranch]) || { tree: {} }).tree['chapters/01-introduction.md']; }); } },
               { id: 'write', text: 'Give <b>aino</b> the <b>Write</b> role on that repository',
                 hint: 'Open the repository, then Settings → Collaborators and teams → Add people.',
@@ -75,7 +74,7 @@
                 check: function (w) { return slugs(w, /^hamk-projects\/thesis-2026-/).some(function (s) { return w.roleOf('aino', s) === 'write'; }); } }
             ] } },
         { id: 'a4-c2', type: 'callout', kind: 'tip', title: 'Team or direct access?', html: 'For one student and one repository, adding the person directly is simplest. For a whole class, put the students in a team (for example <b>Thesis 2026</b>) and give the <em>team</em> Write on each repository. Then one change to the team updates every repository.' },
-        { id: 'a4-c2b', type: 'callout', kind: 'info', title: 'In this course simulator', html: 'The template is a drop-down on the <b>New repository</b> page. On the real github.com you can also open the template and press the green <b>Use this template</b> button.' },        { id: 'a4-q2b', type: 'question', q: 'a4-q-team' }
+        { id: 'a4-c2b', type: 'callout', kind: 'info', title: 'In this course simulator', html: 'Open the template and press the green <b>Use this template</b> button. The <b>New repository</b> page also has a <b>Choose a template</b> drop-down that does the same.' },        { id: 'a4-q2b', type: 'question', q: 'a4-q-team' }
       ] },
       { id: 'a4-work', title: 'Work, push regularly, submit', blocks: [
         { id: 'a4-t3', type: 'text', html: '<p>The student clones the repository once, then repeats the cycle from the beginner lessons: edit, <code>git add</code>, <code>git commit</code>, <code>git push</code>. <b>Push at least at the end of every working session.</b> A commit that was never pushed is still only on the laptop, so the school cannot see it.</p><p>When the work is ready to hand in, mark that exact moment with a <b>tag</b>: a permanent, named label on one commit. The school name is <code>v1.0-submitted</code>. Later commits do not move it, so the supervisor can always find what was handed in.</p>' },

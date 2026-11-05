@@ -1,5 +1,4 @@
 /* github.com simulator (viz/github.js). Our tokens for surfaces/text (both themes); --gh-* for GitHub's own colours. */
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .gh-persona { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: 0 0 .6rem; }
 .gh-persona-label { font-size: .8rem; font-weight: 700; color: var(--muted); }
 .gh-persona-list { display: flex; flex-wrap: wrap; gap: .3rem; }
@@ -103,14 +102,14 @@
 .gh-issue-title { font-weight: 400; }
 .gh-state { display: inline-block; padding: .2rem .7rem; border-radius: 99px; color: #fff; font-size: .8rem; font-weight: 600; }
 .gh-state.open { background: var(--gh-green); } .gh-state.closed { background: var(--gh-purple); } .gh-state.merged { background: var(--gh-purple); }
-.gh-open { color: var(--ok); } .gh-done { color: var(--gh-purple); } .gh-merged { color: var(--gh-purple); }
+.gh-open { color: var(--ok); } .gh-done { color: var(--gh-purple-text); } .gh-merged { color: var(--gh-purple-text); }
 .gh-comment { border: 1px solid var(--line); border-radius: 6px; margin: .6rem 0; background: var(--surface); }
 .gh-comment-h { display: flex; align-items: center; gap: .3rem; padding: .35rem .6rem; background: var(--surface-2); border-bottom: 1px solid var(--line); font-size: .82rem; }
 .gh-comment > .gh-md { padding: .3rem .8rem .5rem; }
 .gh-review { margin: .5rem 0; padding: .4rem .6rem; border-left: 3px solid var(--line); font-size: .85rem; }
 .gh-review.approved { border-left-color: var(--ok); } .gh-review.changes { border-left-color: var(--bad); }
 .gh-merge { border: 1px solid var(--line); border-radius: 6px; padding: .6rem .8rem; margin: .8rem 0; display: grid; gap: .4rem; background: var(--surface); }
-.gh-check { font-size: .85rem; } .gh-check.ok { color: var(--ok); } .gh-check.bad { color: var(--bad); } .gh-check.merged { color: var(--gh-purple); font-weight: 650; }
+.gh-check { font-size: .85rem; } .gh-check.ok { color: var(--ok); } .gh-check.bad { color: var(--bad); } .gh-check.merged { color: var(--gh-purple-text); font-weight: 650; }
 .gh-merge-btns { display: inline-flex; } .gh-merge-btns .gh-btn:first-child { border-radius: 6px 0 0 6px; } .gh-merge-btns .gh-btn + .gh-btn { border-radius: 0 6px 6px 0; border-left-color: rgba(0,0,0,.25); }
 .gh-review-pop { display: grid; gap: .45rem; width: min(17rem, 80vw); }   /* must fit inside .popover (max 340px incl. padding) */
 .gh-radio { display: flex; gap: .45rem; align-items: flex-start; font-size: .85rem; }
@@ -145,3 +144,9 @@
 .gh-team-head h3 { margin: .3rem 0 0; }
 .gh-key-icon { font-size: 1.3rem; }
 .gh-term-title { margin: 1rem 0 .4rem; }
+/* Narrow screens: drop the commit-message column, stack Owner / name, fade the scrolling tab row's edge */
+@media (max-width: 480px) {
+  .gh-file-row > .gh-ellip { display: none; } .gh-file-row > a { flex: 1; }
+  .gh-owner-row { flex-direction: column; align-items: stretch; gap: 0; } .gh-slash { display: none; }
+}
+@media (max-width: 760px) { .gh-tabs { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); } }

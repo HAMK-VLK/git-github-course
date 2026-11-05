@@ -326,6 +326,8 @@
       var role = roleOf(login, slug), owner = slug.split('/')[0], org = S.orgs[owner];
       if (roleRank(role) < roleRank(NEED[action] || 'admin')) return 'needs ' + NEED[action] + ' (you have ' + role + ')';
       if (repo.archived && ['push', 'merge', 'edit', 'issue', 'comment', 'triage'].indexOf(action) >= 0) return 'archived';
+      // the org setting "Allow forking of private repositories" applies to everyone, owners included
+      if (action === 'fork' && repo.visibility !== 'public' && org && !org.settings.membersCanFork) return 'forking of private repositories is disabled';
       if (org && !isOrgOwner(login, owner)) {
         if ((action === 'delete' || action === 'transfer') && !org.settings.membersCanDelete) return 'only organization owners can delete or transfer repositories';
         if (action === 'visibility' && !org.settings.membersCanChangeVisibility) return 'only organization owners can change visibility';
@@ -345,7 +347,8 @@
       });
     }
     /** Create a repository on the server from a simple description. */
-    function makeRemote(slug, o) {
+    function makeRemote(slug, o, seed) {
+      // seed: lesson setup history, one commit a day so dates differ like a real project
       o = o || {};
       var owner = slug.split('/')[0];
       if (!S.orgs[owner]) ensureUser(owner);
@@ -363,7 +366,7 @@
       (o.commits || [{ msg: 'Initial commit', files: { 'README.md': '# ' + repo.name + '\n' } }]).forEach(function (c) {
         keys(c.files || {}).forEach(function (p) { if (c.files[p] == null) delete tree[p]; else tree[p] = c.files[p]; });
         var u = S.users[c.author || owner] || ensureUser(c.author || owner);
-        parent = makeCommit(tree, [parent], c.msg, u.name, (c.author || owner) + '@users.noreply.github.com');
+        parent = makeCommit(tree, [parent], c.msg, u.name, (c.author || owner) + '@users.noreply.github.com', seed && (W.clock += 86400000));
       });
       if (parent) repo.refs[repo.defaultBranch] = parent;   // commits: [] = an empty repository
       keys(o.branches || {}).forEach(function (b) {
@@ -371,7 +374,7 @@
         o.branches[b].forEach(function (c) {
           keys(c.files || {}).forEach(function (f) { if (c.files[f] == null) delete bt[f]; else bt[f] = c.files[f]; });
           var u = S.users[c.author || owner] || ensureUser(c.author || owner);
-          p = makeCommit(bt, [p], c.msg, u.name, (c.author || owner) + '@users.noreply.github.com');
+          p = makeCommit(bt, [p], c.msg, u.name, (c.author || owner) + '@users.noreply.github.com', seed && (W.clock += 86400000));
         });
         repo.refs[b] = p;
       });
@@ -1201,6 +1204,13 @@
     W.resolve = resolveRef; W.decorations = decorations; W.isAncestor = isAncestor; W.fmtTime = fmtTime;
     W.ran = function (re) { return W.log.some(function (l) { return !l.code && (re.test ? re.test(l.cmd) : l.cmd === re); }); };
     W.commitsOn = function (r, b) { var s = r && (b ? r.heads[b] : headSha(r)); return s ? walk([s]) : []; };
+    /** A repository the signed-in person creates (web, Desktop Publish): on a personal account only the owner has
+     *  access; in an organization the creator becomes Admin of it, as on GitHub (org owners already are). */
+    W.createRepo = function (slug, o) {
+      var r = makeRemote(slug, o), org = S.orgs[r.owner];
+      if (!org) r.collaborators = {}; else if (org.owners.indexOf(W.me) < 0) r.collaborators[W.me] = 'admin';
+      return r;
+    };
     W.roleOf = roleOf; W.can = can; W.rulesFor = rulesFor; W.makeRemote = makeRemote; W.ensureUser = ensureUser; W.urlOf = urlOf; W.slugFromUrl = slugFromUrl;
     W.ciResult = ciResult; W.openPull = openPull; W.pullChecks = pullChecks; W.mergePull = mergePull; W.webCommit = webCommit; W.makeCommit = makeCommit; W.mergeBase = mergeBase; W.mergeTrees = mergeTrees;
     W.isOrgOwner = isOrgOwner; W.ROLES = ROLES; W.roleRank = roleRank;
@@ -1236,7 +1246,7 @@
     ensureUser(W.me, cfg.myName || 'Student');
     keys(cfg.users || {}).forEach(function (u) { var x = ensureUser(u, cfg.users[u].name); Object.assign(x, cfg.users[u]); });
     keys(cfg.orgs || {}).forEach(function (o) { W.makeOrg(o, cfg.orgs[o]); });
-    keys(cfg.remotes || {}).forEach(function (s) { makeRemote(s, cfg.remotes[s]); });
+    keys(cfg.remotes || {}).forEach(function (s) { makeRemote(s, cfg.remotes[s], true); });
     Object.assign(W.config, cfg.config || {});
     keys(cfg.files || {}).forEach(function (p) { writeFile(abs(p), cfg.files[p]); });
     (cfg.dirs || []).forEach(function (d) { mkdirp(abs(d)); });

@@ -15,7 +15,7 @@
     var rows = tasks.map(function (t, i) {
       var tip = el('div', { class: 'task-tip', hidden: true });
       var row = el('li', { class: 'task' }, [
-        el('span', { class: 'task-check', 'aria-hidden': 'true' }, String(i + 1)),
+        el('span', { class: 'task-check', 'aria-hidden': 'true' }, String(i + 1)), el('span', { class: 'sr-only task-state' }, TDC.t('task.todo') + ' '),
         el('div', { class: 'task-body' }, [
           el('span', { class: 'task-text', html: ctx.tx(t.text) }),
           el('span', { class: 'task-btns' }, [
@@ -30,12 +30,12 @@
       ]);
       return { t: t, row: row };
     });
-    var count = el('span', { class: 'tasks-count' });
+    var count = el('span', { class: 'tasks-count', role: 'status' });
     var box = el('div', { class: 'tasks' }, [
       el('div', { class: 'tasks-head' }, [el('span', { class: 'ch-badge' }, TDC.t('task.title')), count]),
       el('ol', { class: 'task-list' }, rows.map(function (r) { return r.row; }))
     ]);
-    function mark(r, done) { r.row.classList.toggle('is-done', done); r.row.querySelector('.task-check').textContent = done ? '✓' : String(rows.indexOf(r) + 1); }
+    function mark(r, done) { r.row.classList.toggle('is-done', done); r.row.querySelector('.task-check').textContent = done ? '✓' : String(rows.indexOf(r) + 1); r.row.querySelector('.task-state').textContent = TDC.t(done ? 'task.doneSr' : 'task.todo') + ' '; }
     box.refresh = function () {
       var n = 0, firstOpen = true;
       rows.forEach(function (r) {
@@ -64,12 +64,17 @@
   /** Mini Markdown -> HTML (escaped first, so it is safe for learner input). */
   V.md = function (src) {
     var out = [], list = null, inCode = false, code = [], para = [];
+    // Code spans first: nothing inside backticks is formatted. _x_ is emphasis only at word edges, as on GitHub,
+    // so file names like thesis_final_v2.docx stay as typed.
     function inline(s) {
-      return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>').replace(/_([^_]+)_/g, '<em>$1</em>')
-        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<span class="md-img">🖼 $1</span>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="#" class="md-fake" title="$2">$1</a>')
-        .replace(/(^|\s)#(\d+)\b/g, '$1<a href="#" class="md-fake">#$2</a>').replace(/(^|\s)@([\w-]+)/g, '$1<b class="md-mention">@$2</b>');
+      return esc(s).split(/(`[^`]+`)/).map(function (part, i) {
+        if (i % 2) return '<code>' + part.slice(1, -1) + '</code>';
+        return part.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>').replace(/(^|[^\w])_([^_]+)_(?!\w)/g, '$1<em>$2</em>')
+          .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<span class="md-img">🖼 $1</span>')
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="#" class="md-fake" title="$2">$1</a>')
+          .replace(/(^|\s)#(\d+)\b/g, '$1<a href="#" class="md-fake">#$2</a>').replace(/(^|\s)@([\w-]+)/g, '$1<b class="md-mention">@$2</b>');
+      }).join('');
     }
     function flushPara() { if (para.length) { out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; } }
     function flushList() { if (list) { out.push('</' + list + '>'); list = null; } }
@@ -109,23 +114,34 @@
   V.editor = function (host, opts) {
     var ta = el('textarea', { class: 'sim-editor-ta', spellcheck: 'false', autocapitalize: 'off', 'aria-label': opts.title });
     ta.value = opts.text || '';
-    var box = el('div', { class: 'sim-editor', role: 'dialog', 'aria-label': opts.title }, [
+    var opener = document.activeElement;
+    function close() { box.remove(); opts.onClose && opts.onClose(); if (opener && document.contains(opener) && opener.focus) opener.focus({ preventScroll: true }); }
+    var box = el('div', { class: 'sim-editor', role: 'dialog', 'aria-modal': 'true', 'aria-label': opts.title }, [
       el('div', { class: 'sim-editor-bar' }, [el('span', {}, '📝 ' + opts.title), el('span', { class: 'muted small' }, opts.hint || TDC.t('sim.editorHint'))]),
       ta,
       el('div', { class: 'sim-editor-actions' }, [
-        el('button', { class: 'btn btn-small btn-ghost', onclick: function () { box.remove(); opts.onClose && opts.onClose(); } }, TDC.t('common.cancel')),
+        el('button', { class: 'btn btn-small btn-ghost', onclick: close }, TDC.t('common.cancel')),
         el('button', { class: 'btn btn-small btn-primary', onclick: save }, TDC.t('sim.saveClose'))
       ])
     ]);
     function save() { var v = ta.value; if (v && !/\n$/.test(v)) v += '\n'; box.remove(); opts.onSave(v); opts.onClose && opts.onClose(); }
-    ta.addEventListener('keydown', function (e) {
+    box.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); }
-      if (e.key === 'Escape') { box.remove(); opts.onClose && opts.onClose(); }
+      if (e.key === 'Escape') { e.stopPropagation(); close(); }
+      TDC.ui.trap(box, e);
     });
     host.appendChild(box);
     setTimeout(function () { ta.focus(); }, 30);
     return box;
   };
+
+  // Keep the saved log small without breaking replay: past the limit drop the oldest page visits, clicks and
+  // refusals (they change nothing in the world), never the actions the world is rebuilt from.
+  var LOG_MAX = 500, NOISE = { visit: 1, click: 1, denied: 1, 'visit-run': 1 };
+  function trimLog(log) {
+    var drop = log.length - LOG_MAX;
+    return drop <= 0 ? log : log.filter(function (e) { if (drop > 0 && e && e.ev && NOISE[e.ev.type]) { drop--; return false; } return true; });
+  }
 
   /** Replayable simulator session: the world is rebuilt from cfg.world and the learner's saved actions.
    *  apply(w, entry, replaying) performs one action (entries are small JSON objects chosen by the widget). */
@@ -134,26 +150,51 @@
     S.boot = function () {
       S.w = TDC.git.world(cfg.world || {});
       S.log = [];
-      var saved = (ctx.getState() || {}).log || [];
+      var saved = (ctx.getState() || {}).log;
+      if (!Array.isArray(saved)) saved = [];
       saved.forEach(function (e) { try { apply(S.w, e, true); } catch (err) { console.warn('[sim] replay failed', e, err); } S.log.push(e); });
       S.restored = saved.length;
       return S.w;
     };
-    S.act = function (e) { var r = apply(S.w, e, false); S.log.push(e); ctx.setState({ log: S.log.slice(-500) }); return r; };
+    S.act = function (e) { var r = apply(S.w, e, false); S.log.push(e); S.log = trimLog(S.log); ctx.setState({ log: S.log }); return r; };
     S.reset = function () { ctx.setState({ log: [] }); return S.boot(); };
     return S;
   };
 
+  // ----- keyboard focus across re-renders: simulators rebuild their DOM on every action -----
+  function sig(n) { return { tag: n.tagName, id: n.getAttribute('data-id'), label: n.getAttribute('aria-label'), text: (n.textContent || '').trim().slice(0, 60) }; }
+  function findSig(root, s) {
+    return Array.prototype.filter.call(root.querySelectorAll(s.tag), function (n) {
+      return n.getAttribute('data-id') === s.id && n.getAttribute('aria-label') === s.label && (n.textContent || '').trim().slice(0, 60) === s.text && n.offsetParent;
+    })[0];
+  }
+  /** Run fn (which rebuilds root) and put focus back on the matching control, or on fallback(), so a
+   *  keyboard user is not thrown to the top of the page after every click. */
+  V.keepFocus = function (root, fn, fallback) {
+    var a = document.activeElement, s = a && a !== root && root.contains(a) ? sig(a) : null;
+    fn();
+    if (!s || root.contains(document.activeElement) && document.activeElement !== document.body) return;
+    var m = findSig(root, s) || (fallback && fallback());
+    if (m) m.focus({ preventScroll: true });
+  };
+
   /** Small dialog inside a simulator (positioned over host). buttons: [{label, primary, run() -> false keeps open}] */
   V.dialog = function (host, title, body, buttons) {
-    var box = el('div', { class: 'sim-dialog', role: 'dialog', 'aria-label': title }, [
-      el('div', { class: 'sim-dialog-head' }, [el('strong', {}, title), el('button', { class: 'icon-btn sm', 'aria-label': TDC.t('common.close'), onclick: function () { box.remove(); } }, '✕')]),
+    var opener = document.activeElement, os = opener && opener !== document.body ? sig(opener) : null, scope = host.closest('.blk') || document.body;
+    // close: give focus back to the control that opened the dialog (re-found if the simulator was redrawn)
+    function close() {
+      box.remove();
+      var t = opener && document.contains(opener) ? opener : os && findSig(scope, os);
+      if (t && t.focus) t.focus({ preventScroll: true });
+    }
+    var box = el('div', { class: 'sim-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, [
+      el('div', { class: 'sim-dialog-head' }, [el('strong', {}, title), el('button', { class: 'icon-btn sm', 'aria-label': TDC.t('common.close'), onclick: close }, '✕')]),
       el('div', { class: 'sim-dialog-body' }, body),
       el('div', { class: 'sim-dialog-actions' }, (buttons || [{ label: TDC.t('common.close') }]).map(function (b) {
-        return el('button', { class: 'btn btn-small' + (b.primary ? ' btn-primary' : '') + (b.danger ? ' btn-danger' : ''), onclick: function () { if (b.run && b.run() === false) return; box.remove(); } }, b.label);
+        return el('button', { class: 'btn btn-small' + (b.primary ? ' btn-primary' : '') + (b.danger ? ' btn-danger' : ''), onclick: function () { if (b.run && b.run() === false) return; close(); } }, b.label);
       }))
     ]);
-    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') box.remove(); });
+    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.stopPropagation(); close(); } TDC.ui.trap(box, e); });
     Array.prototype.forEach.call(host.querySelectorAll('.sim-dialog'), function (d) { d.remove(); });   // one at a time, as on the real sites
     host.appendChild(box);
     // Open where the learner is looking: tall simulated pages can put the host's top far above the viewport.

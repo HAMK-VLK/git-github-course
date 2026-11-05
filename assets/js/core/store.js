@@ -56,14 +56,20 @@
     /** Check a progress file before it replaces anything. Returns the clean document, or null if it is not ours. */
     parseImport: function (text) {
       var d;
-      if (typeof text !== 'string' || text.length > 5e6) return null;
+      if (typeof text !== 'string' || text.length > 2e6) return null;   // a real progress file is far smaller; localStorage holds ~5 MB
       try { d = JSON.parse(text); } catch (e) { return null; }
       var isObj = function (x) { return !!x && typeof x === 'object' && !Array.isArray(x); };
       if (!isObj(d) || d.app !== APP || d.schemaVersion !== 1) return null;
       if (!['progress', 'answers', 'widgets', 'tasks'].every(function (k) { return isObj(d[k]); })) return null;
       if (!Array.isArray(d.bookmarks) || !d.bookmarks.every(function (b) { return typeof b === 'string'; })) return null;
-      var clean = blankDoc();   // keep only the known keys
-      ['progress', 'answers', 'widgets', 'tasks', 'bookmarks'].forEach(function (k) { clean[k] = d[k]; });
+      var clean = blankDoc();   // keep only the known keys, and only entries in the shape the course reads
+      var objs = function (o, ok) { var r = {}; Object.keys(o).forEach(function (k) { if (isObj(o[k]) && (!ok || ok(o[k]))) r[k] = o[k]; }); return r; };
+      clean.progress = objs(d.progress);
+      clean.answers = objs(d.answers, function (a) { return a.values === undefined || isObj(a.values); });
+      clean.widgets = objs(d.widgets, function (w) {
+        return w.log === undefined || (Array.isArray(w.log) && w.log.length <= 2000 && w.log.every(isObj));   // a simulator replays its log
+      });
+      clean.tasks = d.tasks; clean.bookmarks = d.bookmarks;
       if (isObj(d.lastLocation) && typeof d.lastLocation.topic === 'string') clean.lastLocation = { topic: d.lastLocation.topic, section: typeof d.lastLocation.section === 'string' ? d.lastLocation.section : undefined };
       return clean;
     },
@@ -73,7 +79,7 @@
     _save: U.debounce(function () { S.saveNow(); }, 500),
     saveNow: function () {
       try { localStorage.setItem(LS_KEY, JSON.stringify(S.doc)); }
-      catch (e) { TDC.ui && TDC.ui.toast(TDC.t('store.saveFailed'), 'warn'); return; }
+      catch (e) { TDC.ui && TDC.ui.toast(TDC.t('store.saveFailed'), 'warn'); return false; }
       // Once there is progress, ask the browser not to clear it when space runs low (Chrome/Edge decide silently,
       // Firefox may ask the learner). Over file:// or when refused, nothing changes.
       if (!S._asked && navigator.storage && navigator.storage.persist) { S._asked = true; navigator.storage.persist().catch(function () {}); }

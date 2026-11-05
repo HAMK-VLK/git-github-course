@@ -12,14 +12,14 @@
   --wide: 62rem;          /* one width for every section, box and table */
   --header-h: 56px;
   --ease: cubic-bezier(.2, .7, .2, 1);
-  /* topic accents (same in both themes, tuned for AA on both surfaces) */
-  --t1: #2f6fd6; --t2: #d0571a; --t3: #12936f; --t4: #8250df; --t5: #c4317a;
   /* Git Bash look, same in both themes */
   --term-bg: #0c0f14; --term-bar: #1d232c; --term-fg: #d7dde5; --term-muted: #8b95a3;
   --term-green: #4fd17a; --term-purple: #c678dd; --term-yellow: #e5c07b; --term-cyan: #56b6c2; --term-red: #f07178; --term-blue: #61afef;
   --gd-bar: #24292f; --gd-bar-hover: #32383f; --gd-bar-line: #3d444d; --gd-bar-fg: #f0f3f6; --gd-bar-muted: #9da7b3; --gd-accent: #fd8c73;
   --gh-green: #1f883d; --gh-green-hover: #1a7f37; --gh-green-fg: #ffffff; --gh-purple: #8250df; --gh-red: #cf222e;
 }
+/* Topic accents (--tN) are text AND fills: per theme so both reach 4.5:1 (WCAG AA). Text on an accent or
+ * status fill uses --on-accent / --on-status (white in light, near-black in dark). */
 
 :root[data-theme="light"] {
   color-scheme: light;
@@ -33,7 +33,9 @@
   --primary: #1f5fbf;
   --primary-fg: #ffffff;
   --focus: #1f5fbf;
-  --ok: #1e7f4f; --ok-bg: #e5f5ec;
+  --t1: #2a64c2; --t2: #b8470f; --t3: #0b7a5a; --t4: #7547d6; --t5: #c4317a;
+  --on-accent: #ffffff; --on-status: #ffffff; --field-border: #7a8594; --gh-purple-text: #8250df;
+  --ok: #1a7548; --ok-bg: #e5f5ec;
   --bad: #b42318; --bad-bg: #fdecea;
   --warn: #8a5a00; --warn-bg: #fff4d6;
   --info-bg: #eaf1fc;
@@ -66,6 +68,8 @@
   --primary: #6ea8ff;
   --primary-fg: #08121f;
   --focus: #8dbbff;
+  --t1: #6ea0f0; --t2: #f08a50; --t3: #3cc49a; --t4: #ac8cf0; --t5: #ee77ae;
+  --on-accent: #08121f; --on-status: #08121f; --field-border: #6f8296; --gh-purple-text: #b392f0;
   --ok: #5fd39a; --ok-bg: #11291e;
   --bad: #ff8a80; --bad-bg: #2d1514;
   --warn: #ffcf66; --warn-bg: #2b230f;
