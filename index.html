@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-RF66KCVFgHpp/Fk5Erh858UIxfICzFnQ/qHsA4n7Fd8='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Git &amp; GitHub: version control for everyone</title>
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/tokens.css">
+<link rel="stylesheet" href="assets/css/main.css">
+<link rel="stylesheet" href="assets/css/widgets.css">
+<link rel="stylesheet" href="assets/css/sims.css">
+<link rel="stylesheet" href="assets/css/github.css">
+<script>
+  // Apply saved theme before first paint to avoid a flash of the wrong theme.
+  (function () {
+    try {
+      var p = JSON.parse(localStorage.getItem('gitc.prefs') || '{}');
+      var t = p.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to content</a>
+
+<header class="app-header" id="app-header">
+  <a class="brand" href="#/" aria-label="Home">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M10 7v18M10 13c0 5 12 3 12 8"/></g><g fill="currentColor"><circle cx="10" cy="7" r="3"/><circle cx="10" cy="25" r="3"/><circle cx="22" cy="21" r="3"/></g></svg>
+    <span class="brand-text"><b>Git</b> <span data-i18n="app.short">&amp; GitHub</span></span>
+  </a>
+  <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+  <div class="header-actions">
+    <button class="icon-btn" id="btn-tools" aria-haspopup="true" data-i18n-title="tools.title" data-i18n-aria="tools.title">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z M7 9l3 3-3 3 M12 15h5"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-progress" aria-haspopup="true" data-i18n-title="progress.title" data-i18n-aria="progress.title">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-theme" data-i18n-title="pref.theme" data-i18n-aria="pref.theme">
+      <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+      <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main" tabindex="-1"></main>
+
+<div class="drawer-host" id="drawer-host"></div>
+<div class="modal-host" id="modal-host"></div>
+<div class="toast-host" id="toast-host" aria-live="polite"></div>
+
+<noscript><p style="padding:2rem">This course needs JavaScript.</p></noscript>
+
+<!-- Core (classic scripts only: ES modules are blocked on file://) -->
+<script src="assets/js/core/tdc.js"></script>
+<script src="assets/js/core/i18n.js"></script>
+<script src="lang/ui.js"></script>
+<script src="lang/ui-github.js"></script>
+<script src="assets/js/core/theme.js"></script>
+<script src="assets/js/core/ui.js"></script>
+<script src="assets/js/core/store.js"></script>
+<script src="assets/js/core/render.js"></script>
+<script src="assets/js/core/quiz.js"></script>
+<script src="assets/js/core/tools.js"></script>
+<script src="assets/js/core/router.js"></script>
+<!-- Simulators -->
+<script src="assets/js/sim/git.js"></script>
+<script src="assets/js/viz/common.js"></script>
+<script src="assets/js/viz/gitgraph.js"></script>
+<script src="assets/js/viz/terminal.js"></script>
+<script src="assets/js/viz/gitgui.js"></script>
+<script src="assets/js/viz/github.js"></script>
+<script src="assets/js/viz/learn.js"></script>
+<!-- Content: lessons.js is the registry; one file per lesson -->
+<script src="content/lessons.js"></script>
+<script src="content/l0-gallery.js"></script>
+<script src="content/b1-why.js"></script>
+<script src="content/b2-account-org.js"></script>
+<script src="content/b3-repo-tour.js"></script>
+<script src="content/b4-browser.js"></script>
+<script src="content/b5-install.js"></script>
+<script src="content/b6-first-repo.js"></script>
+<script src="content/b7-history.js"></script>
+<script src="content/b8-clone-push-pull.js"></script>
+<script src="content/i1-good-commits.js"></script>
+<script src="content/i2-branches.js"></script>
+<script src="content/i3-conflicts.js"></script>
+<script src="content/i4-undo.js"></script>
+<script src="content/i5-pull-requests.js"></script>
+<script src="content/i6-issues.js"></script>
+<script src="content/i7-readme.js"></script>
+<script src="content/a1-organizations.js"></script>
+<script src="content/a2-roles.js"></script>
+<script src="content/a3-rulesets.js"></script>
+<script src="content/a4-student-projects.js"></script>
+<script src="content/a5-auth.js"></script>
+<script src="content/a6-tags-releases.js"></script>
+<script src="content/e1-rebase.js"></script>
+<script src="content/e2-internals.js"></script>
+<script src="content/e3-large-files.js"></script>
+<script src="content/e4-actions.js"></script>
+<script src="content/e5-admin.js"></script>
+<script src="content/e6-workflows-capstone.js"></script>
+<script src="assets/js/core/boot.js"></script>
+</body>
+</html>
