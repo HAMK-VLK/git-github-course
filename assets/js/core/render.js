@@ -279,7 +279,15 @@
     var features = el('section', { class: 'feature-strip' }, [
       ['🖥', 'home.f.terminal'], ['🌐', 'home.f.github'], ['🔐', 'home.f.perms'], ['🧩', 'home.f.quiz']
     ].map(function (f) { return el('div', { class: 'feature' }, [el('span', { class: 'feature-icon', 'aria-hidden': 'true' }, f[0]), el('span', { 'data-i18n': f[1] })]); }));
-    main.append(hero, el('div', { class: 'home-bar' }, [el('h2', { class: 'section-title', 'data-i18n': 'home.topics' }), filterBar]), levelsBox, features);
+    // licence and disclaimer (files LICENSE + LICENSE-CONTENT.md ship with the app; the links open them online)
+    var ext = function (href, text) { return el('a', { href: href, target: '_blank', rel: 'noopener noreferrer' }, text); };
+    var REPO = 'https://github.com/HAMK-VLK/git-github-course/blob/main/';
+    var foot = el('footer', { class: 'home-foot muted small' }, [
+      el('p', {}, [TDC.t('foot.material') + ' ', ext('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0'), ' · ' + TDC.t('foot.code') + ' ',
+        ext(REPO + 'LICENSE', 'MIT'), ' · ', ext(REPO + 'LICENSE-CONTENT.md', TDC.t('foot.details'))]),
+      el('p', {}, TDC.t('foot.disclaimer'))
+    ]);
+    main.append(hero, el('div', { class: 'home-bar' }, [el('h2', { class: 'section-title', 'data-i18n': 'home.topics' }), filterBar]), levelsBox, features, foot);
     I.applyStatic(main);
   };
 

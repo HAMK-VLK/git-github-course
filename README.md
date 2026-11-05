@@ -16,3 +16,12 @@ github.com: nothing you do in the course touches real accounts.
 
 ## Use it offline
 **Code → Download ZIP**, unzip, and open `index.html` in Chrome, Edge, Firefox or Safari.
+
+## Licence
+- Course material (lesson texts, questions, glossary: `content/`, `lang/`):
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Reuse and adapt it freely, with credit to HAMK.
+- Software (the web app and simulators: `index.html`, `assets/`): [MIT](LICENSE).
+- Details, how to credit, and the disclaimer: [LICENSE-CONTENT.md](LICENSE-CONTENT.md).
+
+Provided free for learning, **as is**, without warranty; HAMK and the course authors are not liable for its use.
+Not official IT guidance, and not affiliated with GitHub.

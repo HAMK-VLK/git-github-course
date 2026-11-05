@@ -347,3 +347,4 @@ dfn.term:hover { background: color-mix(in srgb, var(--primary) 12%, transparent)
 .ha-cloud path { fill: var(--fg); opacity: .85; } .ha-cloud text { fill: var(--bg); font-size: 9px; }
 /* Visually hidden, still read by screen readers */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.home-foot { margin: 2.5rem 0 1rem; padding-top: 1rem; border-top: 1px solid var(--line); text-align: center; } .home-foot p { margin: .25rem 0; }

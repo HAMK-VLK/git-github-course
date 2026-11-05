@@ -1,6 +1,6 @@
 /* UI strings (English). Lesson content lives in content/*.js. */
 TDC.i18n.add('en', {
-  'a11y.skip': 'Skip to content', 'a11y.code': 'Code example', 'a11y.table': 'Table',
+  'a11y.skip': 'Skip to content', 'foot.material': 'Course material:', 'foot.code': 'code:', 'foot.details': 'Licence and reuse', 'foot.disclaimer': 'Provided free for learning, as is, without warranty. Not official IT guidance: follow your organisation’s own rules. Not affiliated with GitHub.', 'a11y.code': 'Code example', 'a11y.table': 'Table',
   'app.title': 'Git & GitHub: version control for everyone',
   'app.short': '& GitHub',
   'nav.home': 'Home',
