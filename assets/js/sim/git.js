@@ -28,6 +28,11 @@
   function sha1ish(str) { return (cyrb(str, 1) + cyrb(str, 2) + cyrb(str, 3)).slice(0, 40); }
   function lines(s) { return s === '' || s == null ? [] : String(s).replace(/\n$/, '').split('\n'); }
   function keys(o) { return Object.keys(o || {}); }
+  function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }   // typed names like "constructor" must not reach Object.prototype
+  /** git check-ref-format: the rules learners can hit. */
+  function badRef(n) {
+    return !n || n[0] === '-' || n === '@' || /[\s~^:?*\[\\\x00-\x1f\x7f]|\.\.|@\{|\/\/|^\/|\/$|\.$|\.lock$|(^|\/)\./.test(n);
+  }
   function copy(o) { return JSON.parse(JSON.stringify(o)); }
   function roleRank(r) { return Math.max(0, ROLES.indexOf(r || 'none')); }
   function maxRole(a, b) { return roleRank(a) >= roleRank(b) ? a : b; }
@@ -40,10 +45,10 @@
       if (q) { if (ch === q) q = null; else cur += ch; continue; }
       if (ch === '"' || ch === "'") { q = ch; had = true; continue; }
       if (/\s/.test(ch)) { if (cur || had) out.push(cur); cur = ''; had = false; continue; }
-      if (ch === '>' || ch === '&') {
+      if (ch === '>' || ch === '&' || ch === '|' || ch === ';') {
         if (cur || had) out.push(cur); cur = ''; had = false;
         if (ch === '>' && s[i + 1] === '>') { out.push({ op: '>>' }); i++; }
-        else if (ch === '&' && s[i + 1] === '&') { out.push({ op: '&&' }); i++; }
+        else if ((ch === '&' || ch === '|') && s[i + 1] === ch) { out.push({ op: ch + ch }); i++; }
         else out.push({ op: ch });
         continue;
       }
@@ -260,7 +265,7 @@
     }
     function resolveRef(r, ref) {
       if (!ref || ref === 'HEAD') return headSha(r);
-      var m = /^(.+?)(~(\d*)|\^+)$/.exec(ref);
+      var m =/^(.+?)(~(\d*)|\^+)$/.exec(ref);
       if (m) {
         var s = resolveRef(r, m[1]), n = m[2][0] === '~' ? +(m[3] || 1) : m[2].length;
         while (s && n--) s = commit(s).parents[0] || null;
@@ -735,7 +740,7 @@
       }
       if (p.rest[0]) {
         var nb = p.rest[0];
-        if (!/^[\w.\/-]+$/.test(nb)) return fail("fatal: '" + nb + "' is not a valid branch name");
+        if (badRef(nb)) return fail("fatal: '" + nb + "' is not a valid branch name");
         if (r.heads[nb]) return fail("fatal: a branch named '" + nb + "' already exists");
         var at = resolveRef(r, p.rest[1] || 'HEAD'); if (!at) return fail("fatal: not a valid object name: '" + (p.rest[1] || r.HEAD.branch) + "'");
         r.heads[nb] = at; return;
@@ -759,8 +764,8 @@
     }
     function switchTo(r, target, create, detachOk) {
       if (create) {
+        if (badRef(target)) return fail("fatal: '" + target + "' is not a valid branch name");
         if (r.heads[target]) return fail("fatal: a branch named '" + target + "' already exists");
-        if (!/^[\w.\/-]+$/.test(target)) return fail("fatal: '" + target + "' is not a valid branch name");
         if (headSha(r)) r.heads[target] = headSha(r);
         var prev = r.HEAD.branch || short(r.HEAD.sha);
         r.HEAD = { branch: target }; if (headSha(r)) r.reflog.unshift({ sha: headSha(r), msg: 'checkout: moving from ' + prev + ' to ' + target });
@@ -931,8 +936,9 @@
     G.tag = function (a) {
       var r = needRepo(); if (!r) return 1;
       var p = flags(a);
-      if (p.f['-d']) { delete r.tags[p.rest[0]]; say("Deleted tag '" + p.rest[0] + "'"); return; }
+      if (p.f['-d']) { if (!own(r.tags, p.rest[0])) return fail("error: tag '" + p.rest[0] + "' not found."); say("Deleted tag '" + p.rest[0] + "' (was " + short(r.tags[p.rest[0]]) + ')'); delete r.tags[p.rest[0]]; return; }
       if (!p.rest[0]) { keys(r.tags).sort().forEach(function (t) { say(t); }); return; }
+      if (badRef(p.rest[0])) return fail("fatal: '" + p.rest[0] + "' is not a valid tag name.");
       if (r.tags[p.rest[0]]) return fail("fatal: tag '" + p.rest[0] + "' already exists");
       var at = resolveRef(r, p.rest[1] || 'HEAD'); if (!at) return fail('fatal: Failed to resolve \'' + (p.rest[1] || 'HEAD') + '\' as a valid ref.');
       r.tags[p.rest[0]] = at;
@@ -940,7 +946,9 @@
     G.remote = function (a) {
       var r = needRepo(); if (!r) return 1;
       var p = flags(a);
-      if (p.rest[0] === 'add') { if (r.remotes[p.rest[1]]) return fail('error: remote ' + p.rest[1] + ' already exists.'); r.remotes[p.rest[1]] = p.rest[2]; return; }
+      if ((p.rest[0] === 'add' || p.rest[0] === 'set-url') && (!p.rest[1] || !p.rest[2])) return fail('usage: git remote ' + p.rest[0] + ' <name> <url>');
+      if (p.rest[0] === 'add') { if (badRef(p.rest[1])) return fail("fatal: '" + p.rest[1] + "' is not a valid remote name"); if (own(r.remotes, p.rest[1])) return fail('error: remote ' + p.rest[1] + ' already exists.'); r.remotes[p.rest[1]] = p.rest[2]; return; }
+      if ((p.rest[0] === 'remove' || p.rest[0] === 'rm' || p.rest[0] === 'set-url') && !own(r.remotes, p.rest[1])) return fail("error: No such remote: '" + (p.rest[1] || '') + "'");
       if (p.rest[0] === 'remove' || p.rest[0] === 'rm') { delete r.remotes[p.rest[1]]; keys(r.remoteRefs).forEach(function (k) { if (k.indexOf(p.rest[1] + '/') === 0) delete r.remoteRefs[k]; }); return; }
       if (p.rest[0] === 'set-url') { r.remotes[p.rest[1]] = p.rest[2]; return; }
       keys(r.remotes).forEach(function (n) { if (p.f['-v']) say(n + '\t' + r.remotes[n] + ' (fetch)', n + '\t' + r.remotes[n] + ' (push)'); else say(n); });
@@ -988,7 +996,7 @@
     G.fetch = function (a) {
       var r = needRepo(); if (!r) return 1;
       var remote = flags(a).rest[0] || 'origin';
-      if (!r.remotes[remote]) return fail("fatal: '" + remote + "' does not appear to be a git repository");
+      if (!own(r.remotes, remote)) return fail("fatal: '" + remote + "' does not appear to be a git repository");
       var slug = network(r.remotes[remote], 'fetch'); if (!slug) return W.pending ? 0 : 1;
       var upd = fetchInto(r, remote, slug);
       if (upd.length) say('From ' + r.remotes[remote].replace(/\.git$/, ''));
@@ -997,7 +1005,7 @@
     G.pull = function (a) {
       var r = needRepo(); if (!r) return 1;
       var p = flags(a), remote = p.rest[0] || 'origin', b = r.HEAD.branch;
-      if (!r.remotes[remote]) return fail('fatal: No remote repository specified.');
+      if (!own(r.remotes, remote)) return fail('fatal: No remote repository specified.');
       var slug = network(r.remotes[remote], 'fetch'); if (!slug) return W.pending ? 0 : 1;
       fetchInto(r, remote, slug);
       var up = p.rest[1] ? remote + '/' + p.rest[1] : r.upstream[b] || (r.remoteRefs[remote + '/' + b] ? remote + '/' + b : null);
@@ -1010,7 +1018,7 @@
     G.push = function (a) {
       var r = needRepo(); if (!r) return 1;
       var p = flags(a), remote = p.rest[0] || 'origin', b = p.rest[1] || r.HEAD.branch, force = p.f['--force'] || p.f['-f'];
-      if (!r.remotes[remote]) return fail(keys(r.remotes).length ? "fatal: '" + remote + "' does not appear to be a git repository" : 'fatal: No configured push destination.\nEither specify the URL from the command-line or configure a remote repository using\n\n    git remote add <name> <url>\n\nand then push using the remote name\n\n    git push <name>');
+      if (!own(r.remotes, remote)) return fail(keys(r.remotes).length ? "fatal: '" + remote + "' does not appear to be a git repository" : 'fatal: No configured push destination.\nEither specify the URL from the command-line or configure a remote repository using\n\n    git remote add <name> <url>\n\nand then push using the remote name\n\n    git push <name>');
       if (!p.rest[1] && !p.f['-u'] && !p.f['--set-upstream'] && !p.f['--tags'] && !p.f['--delete'] && r.HEAD.branch && !r.upstream[r.HEAD.branch])
         return fail('fatal: The current branch ' + b + ' has no upstream branch.\nTo push the current branch and set the remote as upstream, use\n\n    git push --set-upstream ' + remote + ' ' + b + '\n');
       var url = r.remotes[remote], slug = network(url, 'push'); if (!slug) return W.pending ? 0 : 1;
@@ -1116,17 +1124,27 @@
     SH.rm = function (a) {
       var p = flags(a);
       for (var i = 0; i < p.rest.length; i++) {
-        var f = abs(p.rest[i]);
-        if (W.dirs[f]) { if (!p.f['-r'] && !p.f['-rf'] && !p.f['-f']) return fail("rm: cannot remove '" + p.rest[i] + "': Is a directory"); rmTree(f); continue; }
-        if (W.fs[f] == null) return fail("rm: cannot remove '" + p.rest[i] + "': No such file or directory");
+        var f = abs(p.rest[i]), base = p.rest[i].replace(/\/+$/, '').split('/').pop();
+        // the real rm's failsafes; the home folder is also kept, otherwise the practice world has nowhere to live
+        if (f === '/') return fail("rm: it is dangerous to operate recursively on '/'\nrm: use --no-preserve-root to override this failsafe");
+        if (base === '.' || base === '..') return fail("rm: refusing to remove '.' or '..' directory: skipping '" + p.rest[i] + "'");
+        if (HOME === f || HOME.indexOf(f + '/') === 0) return fail("rm: this practice terminal keeps your home folder (" + p.rest[i] + "). On a real computer this would delete everything in it!");
+        if (W.dirs[f]) {
+          if (!p.f['-r'] && !p.f['-R']) return fail("rm: cannot remove '" + p.rest[i] + "': Is a directory");
+          rmTree(f);
+          if (W.cwd === f || W.cwd.indexOf(f + '/') === 0) W.cwd = f.slice(0, f.lastIndexOf('/')) || HOME;   // real bash would leave you in a folder that no longer exists
+          continue;
+        }
+        if (W.fs[f] == null) { if (p.f['-f']) continue; return fail("rm: cannot remove '" + p.rest[i] + "': No such file or directory"); }
         delete W.fs[f];
       }
     };
     SH.echo = function (a) { say(a.join(' ')); };
     SH.history = function () { W.history.forEach(function (h, i) { say(('  ' + (i + 1)).slice(-4) + '  ' + h); }); };
     SH.whoami = function () { say(W.me); };
-    SH.code = SH.nano = SH.notepad = SH.vim = function (a) {
-      if (!a[0]) return fail('usage: code <file>');
+    SH.exit = SH.logout = function () { say(['muted', 'logout'], ['muted', '(A real Git Bash window would close now. This practice terminal stays open.)']); };
+    SH.code = SH.nano = SH.notepad = SH.vim = function (a, cmd) {
+      if (!a[0]) return fail('usage: ' + cmd + ' <file>  (this practice terminal opens a file by name, e.g. ' + cmd + ' notes.md)');
       var f = abs(a[0]); if (W.dirs[f]) return fail(a[0] + ' is a directory');
       W.pendingEdit = f;
     };
@@ -1158,15 +1176,18 @@
       }
       if (cmd === 'git') {
         var sub = args[0];
+        // refs, remotes and config live in plain objects: a name like "constructor" would hit Object.prototype
+        var odd = args.filter(function (x) { return typeof x === 'string' && x in Object.prototype; })[0];
+        if (odd) return fail("fatal: this practice terminal cannot use the name '" + odd + "' (a simulator limitation; real Git accepts it)");
         if (!sub || sub === '--help' || sub === 'help') { G.help(); return 0; }
         if (sub === '--version' || sub === 'version') { G.version(); return 0; }
         if (sub === '-C') { var save = W.cwd; W.cwd = abs(args[1]); var rc = run1(['git'].concat(args.slice(2))); W.cwd = save; return rc; }
-        if (!G[sub] && REAL_GIT.indexOf(sub) >= 0) return fail("This practice terminal does not have 'git " + sub + "'. It is a real Git command: try it on your own computer.");
-        if (!G[sub]) return fail("git: '" + sub + "' is not a git command. See 'git --help'.");
+        if (!own(G, sub) && REAL_GIT.indexOf(sub) >= 0) return fail("This practice terminal does not have 'git " + sub + "'. It is a real Git command: try it on your own computer.");
+        if (!own(G, sub)) return fail("git: '" + sub + "' is not a git command. See 'git --help'.");
         return G[sub](args.slice(1)) || 0;
       }
       if (cmd === 'printf') return SH.echo(args) || 0;
-      if (SH[cmd]) return SH[cmd](args) || 0;
+      if (own(SH, cmd)) return SH[cmd](args, cmd) || 0;
       if (cmd === 'help') { G.help(); return 0; }
       return fail(cmd + ': command not found');
     }
@@ -1181,13 +1202,16 @@
       if (line === 'clear' || line === 'cls') return { out: [], code: 0, clear: true };
       var toks;
       try { toks = tokenize(line); } catch (e) { return { out: [['bad', 'bash: syntax error: ' + e.message]], code: 2 }; }
-      var parts = [[]];
-      toks.forEach(function (t) { if (t && t.op === '&&') parts.push([]); else parts[parts.length - 1].push(t); });
+      if (toks.some(function (t) { return t && (t.op === '|' || t.op === '||'); })) return { out: [['bad', 'This practice terminal does not support pipes (|) or ||: run the commands one at a time.']], code: 2 };
+      if (toks.some(function (t) { return t && t.op === '&'; })) return { out: [['bad', 'This practice terminal does not run commands in the background (&): leave the & out.']], code: 2 };
+      var parts = [[]], seps = [];   // seps[i]: the operator between parts[i] and parts[i + 1]
+      toks.forEach(function (t) { if (t && (t.op === '&&' || t.op === ';')) { seps.push(t.op); parts.push([]); } else parts[parts.length - 1].push(t); });
+      if (parts.some(function (x, i) { return !x.length && (i < parts.length - 1 || seps[i - 1] === '&&'); })) return { out: [['bad', "bash: syntax error near unexpected token `" + (seps[0] || ';') + "'"]], code: 2 };
       for (var i = 0; i < parts.length; i++) {
         if (!parts[i].length) continue;
         try { code = run1(parts[i]); } catch (e) { console.error(e); say(['bad', 'simulator error: ' + e.message]); code = 1; }
         if (W.pending) break;
-        if (code) break;
+        if (code && seps[i] !== ';') break;   // a; b runs b anyway, a && b only after success
       }
       var res = { out: out, code: code };
       if (W.pendingEdit) { res.edit = W.pendingEdit; W.pendingEdit = null; }
